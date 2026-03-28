@@ -8,7 +8,7 @@ const stderr = globs.stderr;
 
 pub fn main() !void {
     const code = \\printf("foo %d\n" 1);
-    \\curl("-L" "https://archive.google/heart");
+    \\curl([f s S L] "https://archive.google/heart");
     ;
     
     try stdout.print("#+BEGIN_SRC\n{s}\n#+END_SRC\n\noutput:\n", .{code});
@@ -26,9 +26,9 @@ pub fn main() !void {
     var tokenizer = try Tokenizer.init(code, &arena);
     const tokens = try tokenizer.do();
 
-    //try tokenizer.print(tokens);
-    var exec = try Exec.init(tokens, &arena);
-    exec.do() catch |e| {
-        try stderr.print("{t}\n", .{e});
-    };
+    try tokenizer.print(tokens);
+    //var exec = try Exec.init(tokens, &arena);
+    //exec.do() catch |e| {
+    //    try stderr.print("{t}\n", .{e});
+    //};
 }
