@@ -4,9 +4,11 @@ const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Exec = @import("exec.zig").Exec;
 
 const stdout = globs.stdout;
+const stderr = globs.stderr;
 
 pub fn main() !void {
-    const code = \\echo("foo" "bar");
+    const code = \\printf("foo %d\n" 1);
+    \\curl("-L" "https://archive.google/heart");
     ;
     
     try stdout.print("#+BEGIN_SRC\n{s}\n#+END_SRC\n\noutput:\n", .{code});
@@ -24,6 +26,9 @@ pub fn main() !void {
     var tokenizer = try Tokenizer.init(code, &arena);
     const tokens = try tokenizer.do();
 
+    //try tokenizer.print(tokens);
     var exec = try Exec.init(tokens, &arena);
-    try exec.do();
+    exec.do() catch |e| {
+        try stderr.print("{t}\n", .{e});
+    };
 }
