@@ -19,6 +19,7 @@ pub const Token = struct {
     pub const ValueType = enum {
         UNKNOWN,
         NUM,
+        FLAG,
         STRING,
     };
 };
@@ -89,7 +90,9 @@ pub const Tokenizer = struct {
     }
 
     pub fn do(self:*Tokenizer) ![]Token {
-        while (self.next()) |b| {
+        loop: while (self.next()) |b| {
+            if (std.ascii.isWhitespace(b)) continue :loop;
+
             switch (b) {
                 '(' => {
                     try self.res.append(self.alloc, try self.new_token(.FN, null));
@@ -116,7 +119,6 @@ pub const Tokenizer = struct {
                         .value_type = null,
                     });
                 },
-                ' ', '\n', '\t', '\r' => {},
                 else => try self.mem.append(self.alloc, b),
             }
         }
@@ -151,17 +153,16 @@ pub const Tokenizer = struct {
             std.process.exit(1);
         }
         while (self.next() != null and self.cur != ')') {
-            switch (self.cur) {
-                ' ' => if (self.parsing_as) |as| {
-                    if (as == .STRING)
-                        try self.mem.append(self.alloc, self.cur)
-                    else {
-                        try stderr.print(
-                            "unexpected space (parsing as {s})\n", .{@tagName(as)}
-                        );
-                        std.process.exit(1);
-                    }
-                },
+            if (std.ascii.isWhitespace(self.cur)) if (self.parsing_as) |as| {
+                if (as == .STRING)
+                    try self.mem.append(self.alloc, self.cur)
+                else {
+                    try stderr.print(
+                        "unexpected space (parsing as {s})\n", .{@tagName(as)}
+                    );
+                    std.process.exit(1);
+                }
+            } else {} else switch (self.cur) {
                 '"' => {
                     if (self.parsing_as) |t| {
                         if (t == .STRING) if (self.peek() == ')' or self.peek() == ' ') {
@@ -178,6 +179,17 @@ pub const Tokenizer = struct {
                         }
                     } else
                         self.parsing_as = .STRING;
+                },
+                '[' => {
+                    if (self.parsing_as) |_| {
+                        try stderr.print(
+                            "unexpected '[' while parsing args (expected {?t})\n",
+                            .{ self.parsing_as }
+                        );
+                        std.process.exit(1);
+                    } else {
+                        try self.consume_flags();
+                    }
                 },
                 else => if (hlp.is_num(self.cur)) {
                     try self.consume_num();
@@ -202,12 +214,26 @@ pub const Tokenizer = struct {
         defer _ = self.back();
         _ = self.back();
         while (self.next()) |b| {
-            switch (b) {
-                ' ', '\n', '\t', '\r', ')' => return,
-                else => if (hlp.is_num(b)) {
-                    try self.mem.append(self.alloc, b);
-                } else return Error.NAN,
+            if (std.ascii.isWhitespace(b) or b == ')') return;
+            if (hlp.is_num(b))
+                try self.mem.append(self.alloc, b)
+            else
+                return Error.NAN;
+        }
+    }
+
+    fn consume_flags(self:*Tokenizer) !void {
+        self.parsing_as = .NUM;
+        if (self.mem.items.len > 0) @panic("consume_arg: MEM GREATER THAN 0");
+        defer {
+            _ = self.mem.clearAndFree(self.alloc);
+        }
+        loop: while (self.next()) |b| {
+            if (std.ascii.isWhitespace(b) or b == ']') {
+                try self.res.append(self.alloc, try self.new_token(.VALUE, .FLAG));
+                if (b == ']') return else continue :loop;
             }
+            try self.mem.append(self.alloc, b);
         }
     }
 };
