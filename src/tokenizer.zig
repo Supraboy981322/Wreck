@@ -36,6 +36,11 @@ pub const Token = struct {
             }
         );
     }
+
+    pub fn is_flag(self:*Token) bool {
+        if (self.type != .VALUE) return false;
+        return self.value_type.? == .FLAG;
+    }
 };
 
 pub const Error = error {
