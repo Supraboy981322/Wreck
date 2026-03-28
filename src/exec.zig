@@ -11,15 +11,19 @@ pub const Exec = struct {
     pos:?usize,
     arena:std.heap.ArenaAllocator,
     alloc:std.mem.Allocator,
+    env:*const std.process.EnvMap,
 
     pub fn init(tokens: []Token, arena:*std.heap.ArenaAllocator) !Exec {
         const alloc = arena.*.allocator();
+        const env = try std.process.getEnvMap(alloc);
+        
         return .{
             .in = tokens,
             .pos = null,
             .cur = undefined,
             .arena = arena.*,
             .alloc = alloc,
+            .env = &env,
         };
     }
 
@@ -63,7 +67,6 @@ pub const Exec = struct {
 
     fn run(self:*Exec, cmd:Token, args:[]Token) !void {
         const argv = try self.string_args(cmd, args);
-        var child = std.process.Child.init(argv, self.alloc);
-        _ = try child.spawnAndWait();
+        return std.process.execv(self.alloc, argv);
     }
 };
