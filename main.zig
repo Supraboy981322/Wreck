@@ -101,7 +101,6 @@ const Tokenizer = struct {
                 },
                 else => {
                     try self.mem.append(self.alloc, b);
-                    try stderr.print("{c}\n", .{self.cur});
                 },
             }
         }
@@ -139,7 +138,7 @@ const Tokenizer = struct {
                             try self.res.append(
                                 self.alloc, try self.new_token(.VALUE, .STRING)
                             );
-                        } else @panic("TODO: edge case") else {
+                        } else {} else {
                             try stderr.print(
                                 "unexpected '\"' while parsing args (expected {?t})",
                                 .{ self.parsing_as }
@@ -210,14 +209,20 @@ const Exec = struct {
         return try mem.toOwnedSlice(self.alloc);
     }
     
-    fn run(self:*Exec, cmd:Token, args:[]Token) !void {
-        _ = self;
-        try stdout.print("#+BEGIN run\n", .{});
-        try stdout.print("{s}\n", .{cmd.raw});
+    fn string_args(self:*Exec, cmd:Token, args:[]Token) ![][]const u8 {
+        var argv = try std.ArrayList([]const u8).initCapacity(self.alloc, 0);
+        defer _ = argv.deinit(self.alloc);
+        try argv.append(self.alloc, cmd.raw);
         for (args) |a|
-            try stdout.print("{s}\n", .{a.raw});
+            try argv.append(self.alloc, a.raw);
+        return try argv.toOwnedSlice(self.alloc);
 
-        try stdout.print("#-END run\n", .{});
+    }
+
+    fn run(self:*Exec, cmd:Token, args:[]Token) !void {
+        const argv = try self.string_args(cmd, args);
+        var child = std.process.Child.init(argv, self.alloc);
+        _ = try child.spawnAndWait();
     }
 };
 
