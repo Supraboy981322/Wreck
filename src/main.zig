@@ -2,6 +2,7 @@ const std = @import("std");
 const globs = @import("globs.zig");
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Exec = @import("exec.zig").Exec;
+const parser = @import("parser.zig");
 
 const stdout = globs.stdout;
 const stderr = globs.stderr;
@@ -28,6 +29,12 @@ pub fn main() !void {
 
     try stderr.print("\ntokenized:\n", .{});
     try tokenizer.print(tokens);
+
+    try stdout.print("\ntranspiled:\n", .{});
+    var transpiler = try parser.Transpiler.init(arena.allocator(), tokens);
+    const shell = try transpiler.to_shell();
+    defer arena.allocator().free(shell);
+    try stdout.print("{s}\n", .{shell});
 
     try stderr.print("\noutput:\n", .{});
     var exec = try Exec.init(tokens, &arena);
