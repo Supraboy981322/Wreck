@@ -3,6 +3,7 @@ const globs = @import("globs.zig");
 const tokenizer = @import("tokenizer.zig");
 
 const stderr = globs.stderr;
+const stdout = globs.stdout;
 const Token = tokenizer.Token;
 
 pub const Exec = struct {
@@ -34,6 +35,9 @@ pub const Exec = struct {
         self.cur = self.in[self.pos.?];
         return self.cur;
     }
+    fn peek(self:*Exec) ?Token {
+        return if (self.in.len <= self.pos.? + 1) null else self.in[self.pos.?+1];
+    }
 
     pub fn do(self:*Exec) !void {
         while (self.next()) |token| {
@@ -48,9 +52,15 @@ pub const Exec = struct {
 
     fn get_args(self:*Exec) ![]Token {
         var mem = try std.ArrayList(Token).initCapacity(self.alloc, 0);
-        defer _ = mem.deinit(self.alloc);
-        while (self.next() != null and self.cur.type != .EOX) {
-            try mem.append(self.alloc, self.cur);
+        defer {
+            _ = mem.deinit(self.alloc);
+        }
+        loop: while (self.peek()) |tok| {
+            _ = self.next();
+            if (tok.type != .EOX) 
+                try mem.append(self.alloc, tok)
+            else
+                break :loop;
         }
         return try mem.toOwnedSlice(self.alloc);
     }
@@ -67,6 +77,30 @@ pub const Exec = struct {
 
     fn run(self:*Exec, cmd:Token, args:[]Token) !void {
         const argv = try self.string_args(cmd, args);
-        return std.process.execv(self.alloc, argv);
+        var child = std.process.Child{
+            .allocator = self.alloc,
+            .argv = argv,
+            .stdout_behavior = .Inherit,
+            .stderr_behavior = .Inherit,
+            .stdin_behavior = .Inherit,
+            .stdin = std.fs.File.stdin(),
+            .stdout = std.fs.File.stdout(),
+            .stderr = std.fs.File.stderr(),
+
+            // TODO: this stuff
+            .id = undefined,
+            .thread_handle = undefined,
+            .err_pipe = null,
+            .term = null,
+            .env_map = null,
+            .uid = null,
+            .cwd = null,
+            .gid = null,
+            .pgid = null,
+            .expand_arg0 = .no_expand,
+        };
+        try child.spawn(); 
+        // TODO: term code
+        _ = try child.wait();
     }
 };
