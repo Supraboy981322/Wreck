@@ -190,7 +190,7 @@ pub const Tokenizer = struct {
         return self.peek() != 0 or self.cur != ')';
     }
 
-    pub fn double_check(self:*Tokenizer, tokens:[]Token) !void {
+    pub fn print(self:*Tokenizer, tokens:[]Token) !void {
         _ = self;
         for (tokens) |token| {
             try stdout.print("|{s}|\n", .{token.raw});
