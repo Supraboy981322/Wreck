@@ -18,10 +18,24 @@ pub const Token = struct {
     };
     pub const ValueType = enum {
         UNKNOWN,
+        VOID,
         NUM,
         FLAG,
         STRING,
     };
+
+    pub fn print(self:*Token) !void {
+        try stdout.print(
+            "\x1b[0;33mraw\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}} "
+                ++ "\x1b[0;34mtype\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}} "
+                ++ "\x1b[0;35mvalue_type\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+            .{
+                self.raw,
+                @tagName(self.type),
+                @tagName(if (self.value_type) |t| t else .VOID),
+            }
+        );
+    }
 };
 
 pub const Error = error {
@@ -204,9 +218,7 @@ pub const Tokenizer = struct {
 
     pub fn print(self:*Tokenizer, tokens:[]Token) !void {
         _ = self;
-        for (tokens) |token| {
-            try stdout.print("|{s}|\n", .{token.raw});
-        }
+        for (tokens) |*token| try token.print();
     }
 
     fn consume_num(self:*Tokenizer) !void {
