@@ -1,5 +1,6 @@
 const std = @import("std");
 const globs = @import("globs.zig");
+const hlp = @import("helpers.zig");
 
 const stdout = globs.stdout;
 const stderr = globs.stderr;
@@ -20,6 +21,10 @@ pub const Token = struct {
         NUM,
         STRING,
     };
+};
+
+pub const Error = error {
+    NAN,
 };
 
 pub const Tokenizer = struct {
@@ -64,6 +69,10 @@ pub const Tokenizer = struct {
         expecting:Token.Type,
         parsing:?Token.ValueType
     ) !Token {
+        defer {
+            self.mem.clearAndFree(self.alloc);
+            self.parsing_as = null;
+        }
         const raw = try self.dump_mem();
         if (raw.len < 1) {
             try stderr.print(
@@ -92,8 +101,12 @@ pub const Tokenizer = struct {
                 ';' => {
                     if (self.mem.items.len > 0) {
                         try stderr.print(
-                            "unexpected token (mem not empty |{s}|): {c}\n",
-                            .{self.mem.items, self.cur}
+                            "unexpected token (mem not empty |{s}| from {s}): {c}\n",
+                            .{
+                                self.mem.items,
+                                if (self.parsing_as) |as| @tagName(as) else "NOTHING",
+                                self.cur
+                            }
                         );
                         std.process.exit(1);
                     }
@@ -104,9 +117,7 @@ pub const Tokenizer = struct {
                     });
                 },
                 ' ', '\n', '\t', '\r' => {},
-                else => {
-                    try self.mem.append(self.alloc, b);
-                },
+                else => try self.mem.append(self.alloc, b),
             }
         }
         return self.res.items;
@@ -115,6 +126,14 @@ pub const Tokenizer = struct {
     fn next(self:*Tokenizer) ?u8 {
         self.pos = if (self.pos) |p| p + 1 else 0;
         if (self.pos.? >= self.input.len)
+            return null;
+        self.cur = self.input[self.pos.?];
+        return self.cur;
+    }
+
+    fn back(self:*Tokenizer) ?u8 {
+        self.pos = if (self.pos) |p| p - 1 else 0;
+        if (self.pos.? < 1)
             return null;
         self.cur = self.input[self.pos.?];
         return self.cur;
@@ -146,7 +165,6 @@ pub const Tokenizer = struct {
                 '"' => {
                     if (self.parsing_as) |t| {
                         if (t == .STRING) if (self.peek() == ')' or self.peek() == ' ') {
-                            try stdout.print("|{s}|\n", .{self.mem.items});
                             self.parsing_as = null;
                             try self.res.append(
                                 self.alloc, try self.new_token(.VALUE, t)
@@ -161,23 +179,35 @@ pub const Tokenizer = struct {
                     } else
                         self.parsing_as = .STRING;
                 },
-                else => try self.mem.append(self.alloc, self.cur),
+                else => if (hlp.is_num(self.cur)) {
+                    try self.consume_num();
+                    try self.res.append(self.alloc, try self.new_token(.VALUE, .NUM));
+                } else {
+                    try self.mem.append(self.alloc, self.cur);
+                },
             }
         }
-        if (self.next()) |_| {
-            self.pos.? -= 1;
-            self.cur = self.input[self.pos.?];
-            return true;
-        } else if (self.cur != ')') {
-            return false;
-        } else {
-            return true;
+        return self.peek() != 0 or self.cur != ')';
+    }
+
+    pub fn double_check(self:*Tokenizer, tokens:[]Token) !void {
+        _ = self;
+        for (tokens) |token| {
+            try stdout.print("|{s}|\n", .{token.raw});
         }
     }
 
-    pub fn double_check(self:*Tokenizer) !void {
-        for (self.res.items) |token| {
-            try stdout.print("|{s}|\n", .{token.raw});
+    fn consume_num(self:*Tokenizer) !void {
+        self.parsing_as = .NUM;
+        defer _ = self.back();
+        _ = self.back();
+        while (self.next()) |b| {
+            switch (b) {
+                ' ', '\n', '\t', '\r', ')' => return,
+                else => if (hlp.is_num(b)) {
+                    try self.mem.append(self.alloc, b);
+                } else return Error.NAN,
+            }
         }
     }
 };
