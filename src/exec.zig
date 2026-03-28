@@ -69,8 +69,21 @@ pub const Exec = struct {
         var argv = try std.ArrayList([]const u8).initCapacity(self.alloc, 0);
         defer _ = argv.deinit(self.alloc);
         try argv.append(self.alloc, cmd.raw);
-        for (args) |a|
-            try argv.append(self.alloc, a.raw);
+        for (args) |a| switch (a.value_type.?) {
+
+            .FLAG => {
+                defer {
+                    self.alloc.free(a.raw);
+                }
+                const converted = if (a.raw.len > 1)
+                    try std.fmt.allocPrint(self.alloc, "--{s}", .{ a.raw })
+                else
+                    try std.fmt.allocPrint(self.alloc, "-{s}", .{ a.raw });
+                try argv.append(self.alloc, converted);
+            },
+
+            else => try argv.append(self.alloc, a.raw),
+        };
         return try argv.toOwnedSlice(self.alloc);
 
     }
