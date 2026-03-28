@@ -66,7 +66,10 @@ pub const Tokenizer = struct {
     ) !Token {
         const raw = try self.dump_mem();
         if (raw.len < 1) {
-            try stderr.print("unexpected token (mem empty): {c}\n", .{self.cur});
+            try stderr.print(
+                "unexpected token (mem empty from {s}): |{c}|\n",
+                .{if (parsing) |as| @tagName(as) else "NOTHING", self.cur}
+            );
             std.process.exit(1);
         }
         return .{
@@ -82,7 +85,7 @@ pub const Tokenizer = struct {
                 '(' => {
                     try self.res.append(self.alloc, try self.new_token(.FN, null));
                     if (!try self.get_args()) {
-                        try stderr.print("failed to get args", .{});
+                        try stderr.print("failed to get args\n", .{});
                         std.process.exit(1);
                     }
                 },
@@ -100,6 +103,7 @@ pub const Tokenizer = struct {
                         .value_type = null,
                     });
                 },
+                ' ', '\n', '\t', '\r' => {},
                 else => {
                     try self.mem.append(self.alloc, b);
                 },
@@ -124,24 +128,32 @@ pub const Tokenizer = struct {
 
     fn get_args(self:*Tokenizer) !bool {
         if (self.mem.items.len > 0) {
-            try stderr.print("error attempting to parse args: (mem not empty)", .{});
+            try stderr.print("error attempting to parse args: (mem not empty)\n", .{});
             std.process.exit(1);
         }
         while (self.next() != null and self.cur != ')') {
             switch (self.cur) {
-                ' ' => if (self.parsing_as.? == .STRING) {
-                    try self.res.append(self.alloc, try self.new_token(.VALUE, self.parsing_as));
+                ' ' => if (self.parsing_as) |as| {
+                    if (as == .STRING)
+                        try self.mem.append(self.alloc, self.cur)
+                    else {
+                        try stderr.print(
+                            "unexpected space (parsing as {s})\n", .{@tagName(as)}
+                        );
+                        std.process.exit(1);
+                    }
                 },
                 '"' => {
                     if (self.parsing_as) |t| {
-                        if (t == .STRING) if (self.peek() == ')') {
+                        if (t == .STRING) if (self.peek() == ')' or self.peek() == ' ') {
+                            try stdout.print("|{s}|\n", .{self.mem.items});
                             self.parsing_as = null;
                             try self.res.append(
-                                self.alloc, try self.new_token(.VALUE, .STRING)
+                                self.alloc, try self.new_token(.VALUE, t)
                             );
-                        } else {} else {
+                        } else @panic("TODO: 'else {}'") else {
                             try stderr.print(
-                                "unexpected '\"' while parsing args (expected {?t})",
+                                "unexpected '\"' while parsing args (expected {?t})\n",
                                 .{ self.parsing_as }
                             );
                             std.process.exit(1);
@@ -160,6 +172,12 @@ pub const Tokenizer = struct {
             return false;
         } else {
             return true;
+        }
+    }
+
+    pub fn double_check(self:*Tokenizer) !void {
+        for (self.res.items) |token| {
+            try stdout.print("|{s}|\n", .{token.raw});
         }
     }
 };
