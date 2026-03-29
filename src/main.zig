@@ -30,8 +30,8 @@ pub fn main() !void {
     const tokens = try tokenizer.do();
     defer tokenizer.free(tokens);
 
-    try stderr.print("\ntokenized:\n", .{});
-    try tokenizer.print(tokens);
+    //try stderr.print("\ntokenized:\n", .{});
+    //try tokenizer.print(tokens);
 
     //try stdout.print("\ntranspiled:\n", .{});
     //var transpiler = try parser.Transpiler.init(allocator, tokens);

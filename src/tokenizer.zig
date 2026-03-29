@@ -118,7 +118,8 @@ pub const Tokenizer = struct {
 
             switch (b) {
                 '(' => {
-                    try self.res.append(self.alloc, try self.new_token(.FN, null));
+                    const func = try self.new_token(.FN, null);
+                    try self.res.append(self.alloc, func);
                     if (!try self.get_args()) {
                         try stderr.print("failed to get args\n", .{});
                         std.process.exit(1);
@@ -187,9 +188,8 @@ pub const Tokenizer = struct {
                     if (self.parsing_as) |t| {
                         if (t == .STRING) if (self.peek() == ')' or self.peek() == ' ') {
                             self.parsing_as = null;
-                            try self.res.append(
-                                self.alloc, try self.new_token(.VALUE, t)
-                            );
+                            const new = try self.new_token(.VALUE, t);
+                            try self.res.append(self.alloc, new);
                         } else @panic("TODO: 'else {}'") else {
                             try stderr.print(
                                 "unexpected '\"' while parsing args (expected {?t})\n",
@@ -213,7 +213,8 @@ pub const Tokenizer = struct {
                 },
                 else => if (hlp.is_num(self.cur)) {
                     try self.consume_num();
-                    try self.res.append(self.alloc, try self.new_token(.VALUE, .NUM));
+                    const new = try self.new_token(.VALUE, .NUM);
+                    try self.res.append(self.alloc, new);
                 } else {
                     try self.mem.append(self.alloc, self.cur);
                 },
@@ -246,7 +247,8 @@ pub const Tokenizer = struct {
         defer _ = self.mem.clearAndFree(self.alloc);
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b) or b == ']') {
-                try self.res.append(self.alloc, try self.new_token(.VALUE, .FLAG));
+                const new = try self.new_token(.VALUE, .FLAG);
+                try self.res.append(self.alloc, new);
                 if (b == ']') return else continue :loop;
             }
             try self.mem.append(self.alloc, b);
@@ -254,6 +256,7 @@ pub const Tokenizer = struct {
     }
 
     pub fn free(self:*Tokenizer, tokens:[]Token) void {
+        _ = .{ self, tokens };
         for (tokens) |t| self.alloc.free(t.raw);
     }
 };
