@@ -68,7 +68,6 @@ pub const Transpiler = struct {
     fn expand_args(self:*Transpiler) !void {
         defer _ = self.back();
         while (self.next()) |token| {
-            try @import("globs.zig").stdout.print("{s}\n", .{token.raw});
             try  self.mem.append(self.alloc, ' ');
             if (token.type != .VALUE) return;
             switch (token.value_type.?) {
@@ -91,7 +90,6 @@ pub const Transpiler = struct {
     fn expand_flags(self:*Transpiler) !void {
         defer _ = self.back();
         while (self.next()) |token| {
-            try @import("globs.zig").stdout.print("{s}\n", .{token.raw});
             if (!@constCast(&token).is_flag()) return;
             
             const expanded = try expand_flag(self.alloc, token);
