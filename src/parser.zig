@@ -8,18 +8,28 @@ pub const Error = error {
 pub const Transpiler = struct {
     in:[]Token,
     alloc:std.mem.Allocator,
+    arena:std.heap.ArenaAllocator,
     pos:?usize,
     cur:Token,
     mem:std.ArrayList(u8),
+    returning_alloc:std.mem.Allocator,
 
-    pub fn init(alloc:std.mem.Allocator, tokens:[]Token) !Transpiler {
+    pub fn init(owned_alloc:std.mem.Allocator, tokens:[]Token) !Transpiler {
+        var arena = std.heap.ArenaAllocator.init(owned_alloc);
+        const alloc = arena.allocator(); 
         return .{
             .in = tokens,
             .pos = null,
             .cur = undefined,
+            .arena = arena,
             .alloc = alloc,
+            .returning_alloc = owned_alloc,
             .mem = try std.ArrayList(u8).initCapacity(alloc, 0),
         };
+    }
+
+    pub fn deinit(self:*Transpiler) void {
+        _ = self.mem.deinit(self.alloc); 
     }
 
     fn next(self:*Transpiler) ?Token {
@@ -41,7 +51,8 @@ pub const Transpiler = struct {
 
     pub fn to_shell(self:*Transpiler) ![]u8 {
         defer _ = self.mem.clearAndFree(self.alloc);
-        while (self.next()) |token| {
+        defer _ = self.arena.reset(.free_all);
+        while (self.next()) |*token| {
             switch (token.type) {
                 .EOX => try self.mem.append(self.alloc, '\n'),
                 .FN => {
@@ -51,7 +62,7 @@ pub const Transpiler = struct {
                 else => @panic(token.raw),
             }
         }
-        return self.mem.toOwnedSlice(self.alloc);
+        return try self.returning_alloc.dupe(u8, try self.mem.toOwnedSlice(self.alloc));
     }
 
     fn expand_args(self:*Transpiler) !void {
@@ -66,7 +77,11 @@ pub const Transpiler = struct {
 
                 .NUM => try self.mem.appendSlice(self.alloc, token.raw),
 
-                .FLAG => try self.mem.appendSlice(self.alloc, try expand_flag(self.alloc, token)),
+                .FLAG => {
+                    const expanded = try expand_flag(self.alloc, token);
+                    try self.mem.appendSlice(self.alloc, expanded);
+                    self.alloc.free(expanded);
+                },
 
                 else => @panic(@tagName(token.value_type.?)),
             }
@@ -78,7 +93,10 @@ pub const Transpiler = struct {
         while (self.next()) |token| {
             try @import("globs.zig").stdout.print("{s}\n", .{token.raw});
             if (!@constCast(&token).is_flag()) return;
-            try self.mem.appendSlice(self.alloc, try expand_flag(self.alloc, token));
+            
+            const expanded = try expand_flag(self.alloc, token);
+            try self.mem.appendSlice(self.alloc, expanded);
+            self.alloc.free(expanded);
         }
     }
 };

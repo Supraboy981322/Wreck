@@ -41,8 +41,17 @@ pub const Token = struct {
         if (self.type != .VALUE) return false;
         return self.value_type.? == .FLAG;
     }
+
+    pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
+        return .{
+            .raw = try alloc.dupe(u8, self.raw),
+            .type = self.type,
+            .value_type = self.value_type,
+        };
+    }
 };
 
+// TODO: no printing, just return error
 pub const Error = error {
     NAN,
 };
@@ -56,10 +65,8 @@ pub const Tokenizer = struct {
     mem:std.ArrayList(u8),
     res:std.ArrayList(Token),
     alloc:std.mem.Allocator,
-    arena:std.heap.ArenaAllocator,
 
-    pub fn init(in:[]const u8, arena:*std.heap.ArenaAllocator) !Tokenizer {
-        const alloc = arena.*.allocator();
+    pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         return .{
             .input = in,
             .pos = null,
@@ -68,15 +75,12 @@ pub const Tokenizer = struct {
             .cur = 0,
             .mem = try std.ArrayList(u8).initCapacity(alloc, 0),
             .res = try std.ArrayList(Token).initCapacity(alloc, 0),
-            .arena = arena.*,
             .alloc = alloc,
         };
     }
-    pub fn deinit(self:*Tokenizer) !void {
-        _ = self.mem.clearAndFree(self.alloc); 
-        for (self.res.items) |token|
-            self.alloc.free(token.raw);
-        _ = self.res.clearAndFree(self.alloc); 
+    pub fn deinit(self:*Tokenizer) void {
+        _ = self.mem.deinit(self.alloc);
+        _ = self.res.deinit(self.alloc);
     }
 
     fn dump_mem(self:*Tokenizer) ![]u8 {
@@ -141,28 +145,25 @@ pub const Tokenizer = struct {
                 else => try self.mem.append(self.alloc, b),
             }
         }
-        return self.res.items;
+        return self.res.toOwnedSlice(self.alloc);
     }
 
     fn next(self:*Tokenizer) ?u8 {
         self.pos = if (self.pos) |p| p + 1 else 0;
-        if (self.pos.? >= self.input.len)
-            return null;
+        if (self.pos.? >= self.input.len) return null;
         self.cur = self.input[self.pos.?];
         return self.cur;
     }
 
     fn back(self:*Tokenizer) ?u8 {
         self.pos = if (self.pos) |p| p - 1 else 0;
-        if (self.pos.? < 1)
-            return null;
+        if (self.pos.? < 1) return null;
         self.cur = self.input[self.pos.?];
         return self.cur;
     }
 
     fn peek(self:*Tokenizer) u8 {
-        if (self.pos.?+1 >= self.input.len)
-            return 0;
+        if (self.pos.?+1 >= self.input.len) return 0;
         return self.input[self.pos.?+1];
     }
 
@@ -242,9 +243,7 @@ pub const Tokenizer = struct {
     fn consume_flags(self:*Tokenizer) !void {
         self.parsing_as = .NUM;
         if (self.mem.items.len > 0) @panic("consume_arg: MEM GREATER THAN 0");
-        defer {
-            _ = self.mem.clearAndFree(self.alloc);
-        }
+        defer _ = self.mem.clearAndFree(self.alloc);
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b) or b == ']') {
                 try self.res.append(self.alloc, try self.new_token(.VALUE, .FLAG));
@@ -252,5 +251,9 @@ pub const Tokenizer = struct {
             }
             try self.mem.append(self.alloc, b);
         }
+    }
+
+    pub fn free(self:*Tokenizer, tokens:[]Token) void {
+        for (tokens) |t| self.alloc.free(t.raw);
     }
 };
