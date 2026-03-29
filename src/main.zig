@@ -8,6 +8,7 @@ const stdout = globs.stdout;
 const stderr = globs.stderr;
 
 pub fn main() !void {
+    // TODO: trailing and leading whitespace handling in flag type
     const code = \\printf("foo %d\n" 1);
     \\curl([f silent S L] "https://archive.google/heart");
     ;
