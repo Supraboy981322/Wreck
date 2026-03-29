@@ -23,25 +23,25 @@ pub fn main() !void {
         _ = arena.reset(.free_all);
         _ = arena.deinit();
     }
-    //const allocator = arena.allocator();
+    const allocator = arena.allocator();
 
-    var tokenizer = try Tokenizer.init(code, alloc);
+    var tokenizer = try Tokenizer.init(code, allocator);//alloc); // TODO: cleanup allocation
     defer tokenizer.deinit();
     const tokens = try tokenizer.do();
     defer tokenizer.free(tokens);
 
-    //try stderr.print("\ntokenized:\n", .{});
-    //try tokenizer.print(tokens);
+    try stderr.print("\ntokenized:\n", .{});
+    try tokenizer.print(tokens);
 
-    //try stdout.print("\ntranspiled:\n", .{});
-    //var transpiler = try parser.Transpiler.init(allocator, tokens);
-    //defer transpiler.deinit();
-    //const shell = try transpiler.to_shell();
-    //defer arena.allocator().free(shell);
-    //try stdout.print("{s}\n", .{shell});
+    try stdout.print("\ntranspiled:\n", .{});
+    var transpiler = try parser.Transpiler.init(allocator, tokens);
+    defer transpiler.deinit();
+    const shell = try transpiler.to_shell();
+    defer arena.allocator().free(shell);
+    try stdout.print("{s}\n", .{shell});
 
     try stderr.print("\noutput:\n", .{});
-    var exec = try Exec.init(tokens, alloc);
+    var exec = try Exec.init(tokens, allocator);//alloc); // TODO: cleanup allocation
     defer exec.deinit();
     exec.do() catch |e| {
         try stderr.print("{t}\n", .{e});
