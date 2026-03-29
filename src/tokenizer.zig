@@ -260,3 +260,14 @@ pub const Tokenizer = struct {
         for (tokens) |t| self.alloc.free(t.raw);
     }
 };
+
+pub fn dupe(alloc:std.mem.Allocator, in:[]Token) ![]Token {
+    var tokens = try std.ArrayList(Token).initCapacity(alloc, 0);
+    defer _ = tokens.deinit(alloc);
+    for (in) |token| try tokens.append(alloc, try @constCast(&token).own(alloc));
+    return try tokens.toOwnedSlice(alloc);
+}
+
+pub fn free(alloc:std.mem.Allocator, tokens:[]Token) void {
+    for (tokens) |t| alloc.free(t.raw);
+}
