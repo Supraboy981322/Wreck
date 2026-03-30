@@ -72,7 +72,9 @@ pub const Transpiler = struct {
             if (token.type != .VALUE) return;
             switch (token.value_type.?) {
                 // TODO: string escaping and single quotes
-                .STRING => try self.mem.print(self.alloc, "\"{s}\"", .{try unescape_string(self.alloc, token.raw)}),
+                .STRING => try self.mem.print(
+                    self.alloc, "\"{s}\"", .{try unescape(self.alloc, token.raw)}
+                ),
 
                 .NUM => try self.mem.appendSlice(self.alloc, token.raw),
 
@@ -106,7 +108,7 @@ pub fn expand_flag(alloc:std.mem.Allocator, a:Token) ![]u8 {
     return try std.fmt.allocPrint(alloc, "-{s}", .{a.raw});
 }
 
-pub fn unescape_string(alloc:std.mem.Allocator, in:[]u8) ![]u8 {
+pub fn unescape(alloc:std.mem.Allocator, in:[]u8) ![]u8 {
     var out = try std.ArrayList(u8).initCapacity(alloc, 0);
     defer _ = out.deinit(alloc);
     for (in) |b| try out.appendSlice(alloc, switch (b) {
