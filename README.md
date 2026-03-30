@@ -6,7 +6,8 @@ a language with the goal of making you ask:
 this project is 100% human written, clanker free code
 
 >[!WARNING]
->this is still super early development, so it can't do much (***yet***)
+>this is still super early development, so it can't do much (***yet***),
+> also, expect breaking changes
 
 ---
 
