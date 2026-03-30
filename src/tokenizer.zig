@@ -242,13 +242,18 @@ pub const Tokenizer = struct {
     }
 
     fn consume_flags(self:*Tokenizer) !void {
-        self.parsing_as = .NUM;
+        self.parsing_as = .FLAG;
+
         if (self.mem.items.len > 0) @panic("consume_arg: MEM GREATER THAN 0");
+
         defer _ = self.mem.clearAndFree(self.alloc);
+
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b) or b == ']') {
-                const new = try self.new_token(.VALUE, .FLAG);
-                try self.res.append(self.alloc, new);
+                if (self.mem.items.len > 0) {
+                    const new = try self.new_token(.VALUE, .FLAG);
+                    try self.res.append(self.alloc, new);
+                }
                 if (b == ']') return else continue :loop;
             }
             try self.mem.append(self.alloc, b);
