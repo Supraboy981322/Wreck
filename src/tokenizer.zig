@@ -190,7 +190,7 @@ pub const Tokenizer = struct {
             } else {} else if (self.escaping) { 
                 try self.mem.append(
                     self.alloc, switch (self.cur) {
-                        // TODO: octal, decimal, and hex 
+                        // TODO: octal, decimal, hex, and string interpolation 
                         'n' => '\n',
                         'r' => '\r',
                         't' => '\t',
