@@ -9,8 +9,8 @@ const stderr = globs.stderr;
 
 pub fn main() !void {
     const code =
-    \\printf("foo '%d' \" %c\n" 1 '"');
-    \\curl([[ f silent S L ]] "https://archive.google/heart");
+    \\printf("foo '%d' \" \n" 1);
+    \\curl([[ f silent S L ]] 'https://archive.google/heart');
     ;
     
     try stdout.print("#+BEGIN_SRC\n{s}\n#+END_SRC\n", .{code});
