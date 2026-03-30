@@ -187,8 +187,21 @@ pub const Tokenizer = struct {
                     );
                     std.process.exit(1);
                 }
-            } else {} else if (self.escaping) {
-                try self.mem.append(self.alloc, self.cur);
+            } else {} else if (self.escaping) { 
+                try self.mem.append(
+                    self.alloc, switch (self.cur) {
+                        // TODO: octal, decimal, and hex 
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        'e' => '\x1b',
+                        'a' => '\x07',
+                        'b' => '\x08',
+                        'f' => '\x0c',
+                        'v' => '\x0b',
+                        else => self.cur,
+                    }
+                );
                 self.escaping = !self.escaping;
             } else switch (self.cur) {
                 '"', '\'' => {
