@@ -11,3 +11,15 @@ this project is 100% human written, clanker free code
 
 ---
 
+(I do have a standard library planned, but I need to do a lot of work before I can start working on that)
+
+(current) features:
+- just like a Shell scriping language, it can run shell commands
+  - running a shell command is called just like calling any other function
+- flags as a datatype
+- interpreted
+
+current state of the syntax (for example)
+```wreck
+yt-dlp([ o ] "%(title)s" [ x audio-format ] mp3 [ embed-thumbnail embed-metadata ] "https://some.url.and_tld");
+```
