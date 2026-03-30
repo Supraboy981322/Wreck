@@ -65,11 +65,13 @@ pub const Tokenizer = struct {
     mem:std.ArrayList(u8),
     res:std.ArrayList(Token),
     alloc:std.mem.Allocator,
+    string_type:u8,
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         return .{
             .input = in,
             .pos = null,
+            .string_type = 0,
             .expected_type = .INVALID,
             .parsing_as = null,
             .cur = 0,
@@ -184,21 +186,22 @@ pub const Tokenizer = struct {
                     std.process.exit(1);
                 }
             } else {} else switch (self.cur) {
-                '"' => {
+                '"', '\'' => {
                     if (self.parsing_as) |t| {
-                        if (t == .STRING) if (self.peek() == ')' or self.peek() == ' ') {
-                            self.parsing_as = null;
-                            const new = try self.new_token(.VALUE, t);
-                            try self.res.append(self.alloc, new);
-                        } else @panic("TODO: 'else {}'") else {
-                            try stderr.print(
-                                "unexpected '\"' while parsing args (expected {?t})\n",
-                                .{ self.parsing_as }
-                            );
-                            std.process.exit(1);
-                        }
-                    } else
+                        if (t == .STRING and self.string_type == self.cur) {
+                            if (self.peek() == ')' or self.peek() == ' ') {
+                                self.parsing_as = null;
+                                self.string_type = 0;
+                                const new = try self.new_token(.VALUE, t);
+                                try self.res.append(self.alloc, new);
+                            } else
+                                @panic("TODO: 'else {}'");
+                        } else
+                            try self.mem.append(self.alloc, self.cur);
+                    } else {
+                        self.string_type = self.cur;
                         self.parsing_as = .STRING;
+                    }
                 },
                 // TODO: lists
                 '[' => {
@@ -250,7 +253,7 @@ pub const Tokenizer = struct {
 
         defer _ = self.mem.clearAndFree(self.alloc);
 
-        //skip second '['
+        //skip second '[' and ']'
         _ = self.next();
         defer _ = self.next();
 
