@@ -66,6 +66,7 @@ pub const Tokenizer = struct {
     res:std.ArrayList(Token),
     alloc:std.mem.Allocator,
     string_type:u8,
+    escaping:bool,
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         return .{
@@ -78,6 +79,7 @@ pub const Tokenizer = struct {
             .mem = try std.ArrayList(u8).initCapacity(alloc, 0),
             .res = try std.ArrayList(Token).initCapacity(alloc, 0),
             .alloc = alloc,
+            .escaping = false,
         };
     }
     pub fn deinit(self:*Tokenizer) void {
@@ -185,7 +187,10 @@ pub const Tokenizer = struct {
                     );
                     std.process.exit(1);
                 }
-            } else {} else switch (self.cur) {
+            } else {} else if (self.escaping) {
+                try self.mem.append(self.alloc, self.cur);
+                self.escaping = !self.escaping;
+            } else switch (self.cur) {
                 '"', '\'' => {
                     if (self.parsing_as) |t| {
                         if (t == .STRING and self.string_type == self.cur) {
@@ -216,6 +221,9 @@ pub const Tokenizer = struct {
                     else
                         @panic("TODO: lists");
                 },
+
+                '\\' => self.escaping = !self.escaping,
+
                 else => if (hlp.is_num(self.cur)) {
                     try self.consume_num();
                     const new = try self.new_token(.VALUE, .NUM);

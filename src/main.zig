@@ -9,7 +9,7 @@ const stderr = globs.stderr;
 
 pub fn main() !void {
     const code =
-    \\printf("foo '%d' %c\n" 1 '"');
+    \\printf("foo '%d' \" %c\n" 1 '"');
     \\curl([[ f silent S L ]] "https://archive.google/heart");
     ;
     
