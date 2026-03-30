@@ -72,7 +72,7 @@ pub const Transpiler = struct {
             if (token.type != .VALUE) return;
             switch (token.value_type.?) {
                 // TODO: string escaping and single quotes
-                .STRING => try self.mem.print(self.alloc, "\"{s}\"", .{token.raw}),
+                .STRING => try self.mem.print(self.alloc, "\"{s}\"", .{try unescape_string(self.alloc, token.raw)}),
 
                 .NUM => try self.mem.appendSlice(self.alloc, token.raw),
 
@@ -104,4 +104,21 @@ pub fn expand_flag(alloc:std.mem.Allocator, a:Token) ![]u8 {
     if (!@constCast(&a).is_flag()) return Error.IsNotFlag;
     if (a.raw.len > 1) return try std.fmt.allocPrint(alloc, "--{s}", .{a.raw});
     return try std.fmt.allocPrint(alloc, "-{s}", .{a.raw});
+}
+
+pub fn unescape_string(alloc:std.mem.Allocator, in:[]u8) ![]u8 {
+    var out = try std.ArrayList(u8).initCapacity(alloc, 0);
+    defer _ = out.deinit(alloc);
+    for (in) |b| try out.appendSlice(alloc, switch (b) {
+        '\n' => "\\n",
+        '\r' => "\\r",
+        '\t' => "\\t",
+        '\x1b' => "\\e",
+        '\x07' => "\\a",
+        '\x08' => "\\b",
+        '\x0c' => "\\f",
+        '\x0b' => "\\v",
+        else => &[_]u8{b},
+    });
+    return try out.toOwnedSlice(alloc);
 }
