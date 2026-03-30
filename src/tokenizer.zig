@@ -1,6 +1,7 @@
 const std = @import("std");
 const globs = @import("globs.zig");
 const hlp = @import("helpers.zig");
+const parser = @import("parser.zig");
 
 const stdout = globs.stdout;
 const stderr = globs.stderr;
@@ -25,12 +26,14 @@ pub const Token = struct {
     };
 
     pub fn print(self:*Token) !void {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer _ = arena.deinit();
         try stdout.print(
             "\x1b[0;33mraw\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}} "
                 ++ "\x1b[0;34mtype\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}} "
                 ++ "\x1b[0;35mvalue_type\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{
-                self.raw,
+                try parser.unescape(arena.allocator(), self.raw),
                 @tagName(self.type),
                 @tagName(if (self.value_type) |t| t else .VOID),
             }
@@ -172,6 +175,10 @@ pub const Tokenizer = struct {
         return self.input[self.pos.?+1];
     }
 
+    fn is_string(self:*Tokenizer) bool {
+        return if (self.parsing_as) |t| t == .STRING else false;
+    }
+
     fn get_args(self:*Tokenizer) !bool {
         if (self.mem.items.len > 0) {
             try stderr.print("error attempting to parse args: (mem not empty)\n", .{});
@@ -222,7 +229,7 @@ pub const Tokenizer = struct {
                     }
                 },
                 // TODO: lists
-                '[' => {
+                '[' => if (!self.is_string()) {
                     if (self.parsing_as) |_| {
                         try stderr.print(
                             "unexpected '[' while parsing args (expected {?t})\n",
@@ -233,11 +240,11 @@ pub const Tokenizer = struct {
                         try self.consume_flags()
                     else
                         @panic("TODO: lists");
-                },
+                } else try self.mem.append(self.alloc, self.cur),
 
                 '\\' => self.escaping = !self.escaping,
 
-                else => if (hlp.is_num(self.cur)) {
+                else => if (hlp.is_num(self.cur) and !self.is_string()) {
                     try self.consume_num();
                     const new = try self.new_token(.VALUE, .NUM);
                     try self.res.append(self.alloc, new);
