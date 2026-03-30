@@ -200,6 +200,7 @@ pub const Tokenizer = struct {
                     } else
                         self.parsing_as = .STRING;
                 },
+                // TODO: lists
                 '[' => {
                     if (self.parsing_as) |_| {
                         try stderr.print(
@@ -207,9 +208,10 @@ pub const Tokenizer = struct {
                             .{ self.parsing_as }
                         );
                         std.process.exit(1);
-                    } else {
-                        try self.consume_flags();
-                    }
+                    } else if (self.peek() == '[')
+                        try self.consume_flags()
+                    else
+                        @panic("TODO: lists");
                 },
                 else => if (hlp.is_num(self.cur)) {
                     try self.consume_num();
@@ -248,14 +250,21 @@ pub const Tokenizer = struct {
 
         defer _ = self.mem.clearAndFree(self.alloc);
 
+        //skip second '['
+        _ = self.next();
+        defer _ = self.next();
+
         loop: while (self.next()) |b| {
-            if (std.ascii.isWhitespace(b) or b == ']') {
+            if (std.ascii.isWhitespace(b) or (b == ']' and self.peek() == ']')) {
                 if (self.mem.items.len > 0) {
                     const new = try self.new_token(.VALUE, .FLAG);
                     try self.res.append(self.alloc, new);
                 }
-                if (b == ']') return else continue :loop;
+                if (b == ']' and self.peek() == ']') return else continue :loop;
             }
+
+            // TODO: handle invalid symbol in flag
+
             try self.mem.append(self.alloc, b);
         }
     }
