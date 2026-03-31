@@ -81,7 +81,7 @@ fn main(args []flag) bool {
     });
 
     //pipes can be used as a form of a buffer
-    let filename = @std.pipe;
+    let filename = #pipe;
 
     //if a function is not manually defined (or overridden),
     //  it defaults to running a shell command,
