@@ -120,7 +120,7 @@ fn main(args []flag) bool {
     //    and multi-letter flags are converted to (for example) '--foo',
     //      you can flip this behavior for a specific flag by *[syntax TBD]* 
     hyprshot(
-        [[ m ]] "region"
+        [[ m ]] mode_str
         [[ o ]] @std.path.base(paths.itr.mem)
         [[ f ]] filename
     //if a function call (or shell command) fails, you can handle
