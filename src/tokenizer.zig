@@ -23,6 +23,7 @@ pub const Token = struct {
         NUM,
         FLAG,
         STRING,
+        COMMENT,
     };
 
     pub fn print(self:*Token) !void {
@@ -70,6 +71,7 @@ pub const Tokenizer = struct {
     alloc:std.mem.Allocator,
     string_type:u8,
     escaping:bool,
+    comment_depth:usize,
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         return .{
@@ -83,6 +85,7 @@ pub const Tokenizer = struct {
             .res = try std.ArrayList(Token).initCapacity(alloc, 0),
             .alloc = alloc,
             .escaping = false,
+            .comment_depth = 0,
         };
     }
     pub fn deinit(self:*Tokenizer) void {
@@ -160,6 +163,8 @@ pub const Tokenizer = struct {
         self.pos = if (self.pos) |p| p + 1 else 0;
         if (self.pos.? >= self.input.len) return null;
         self.cur = self.input[self.pos.?];
+        if (self.cur == '#' and self.peek() == '(' and !self.is_string()) self.comment();
+
         return self.cur;
     }
 
@@ -297,6 +302,26 @@ pub const Tokenizer = struct {
             // TODO: handle invalid symbol in flag
 
             try self.mem.append(self.alloc, b);
+        }
+    }
+
+    fn builtin(self:*Tokenizer) !void {
+        if (self.peek() == '(') return self.comment();
+        @panic("TODO: builtins");
+    }
+
+    fn comment(self:*Tokenizer) void {
+
+        self.comment_depth = 1;
+        const was_parsing = self.parsing_as;
+        self.parsing_as = .COMMENT;
+        defer self.parsing_as = was_parsing;
+
+        while (self.comment_depth > 0 and self.next() != null) {
+            if (self.cur == '(')
+                self.comment_depth += 1
+            else if (self.cur == ')')
+                self.comment_depth -= 1;
         }
     }
 
