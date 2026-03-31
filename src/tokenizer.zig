@@ -346,9 +346,11 @@ pub const Tokenizer = struct {
     }
 
     fn comment(self:*Tokenizer) void {
-
         self.comment_depth = 1;
-        const was_parsing = self.parsing_as;
+        _ = self.next();
+        defer _ = self.next();
+
+        const was_parsing = if (self.parsing_as) |as| as else null;
         self.parsing_as = .COMMENT;
         defer self.parsing_as = was_parsing;
 
