@@ -130,6 +130,21 @@ pub const Tokenizer = struct {
             .raw  = raw,
             .type = expecting,
             .value_type = parsing,
+            .fn_type = self.fn_type,
+        };
+    }
+
+    fn new_symbol_token(
+        self:*Tokenizer,
+        comptime literal:[]const u8,
+        token_type:Token.Type,
+    ) Token {
+        _ = self;
+        return .{
+            .raw = @constCast(literal),
+            .type = token_type,
+            .value_type = null,
+            .fn_type = null,
         };
     }
 
@@ -160,11 +175,7 @@ pub const Tokenizer = struct {
                         );
                         std.process.exit(1);
                     }
-                    try self.res.append(self.alloc, .{
-                        .raw = try self.alloc.dupe(u8, ";"),
-                        .type = .EOX,
-                        .value_type = null,
-                    });
+                    try self.res.append(self.alloc, self.new_symbol_token(";", .EOX));
                 },
                 else => try self.mem.append(self.alloc, b),
             }
