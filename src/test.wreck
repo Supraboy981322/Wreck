@@ -1,7 +1,7 @@
 
-printf("\e[33mfoo\e[0m '%d' \" \n" 1);
+$printf("\e[33mfoo\e[0m '%d' \" \n" 1);
 
-curl([[ f silent S L ]] #(some comment between) 'https://archive.google/heart');
+$curl([[ f silent S L ]] #(some comment between) 'https://archive.google/heart');
 
 #(? (1 < 0) {
   #(nested #(comments #(work)))
