@@ -33,7 +33,7 @@ I currently plan to make the syntax something like this (for example) (not every
 pkg primary (
     //imports
     [[ needed_pkgs ]] {
-        "insert some repo url here"
+        foo = "insert some repo url here"
     }
     //I'll probably have more options here
 );
