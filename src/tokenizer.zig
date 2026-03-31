@@ -10,6 +10,7 @@ pub const Token = struct {
     raw: []u8,
     type: @This().Type,
     value_type: ?@This().ValueType,
+    fn_type:?@This().FnType,
 
     pub const Type = enum {
         INVALID,
@@ -24,6 +25,11 @@ pub const Token = struct {
         FLAG,
         STRING,
         COMMENT,
+    };
+    pub const FnType = enum {
+        SHELL_CMD,
+        BUILTIN,
+        LOCAL,
     };
 
     pub fn print(self:*Token) !void {
@@ -51,6 +57,7 @@ pub const Token = struct {
             .raw = try alloc.dupe(u8, self.raw),
             .type = self.type,
             .value_type = self.value_type,
+            .fn_type = self.fn_type,
         };
     }
 };
@@ -72,6 +79,8 @@ pub const Tokenizer = struct {
     string_type:u8,
     escaping:bool,
     comment_depth:usize,
+    is_start_of_thing:bool,
+    fn_type:?Token.FnType,
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         return .{
@@ -86,6 +95,8 @@ pub const Tokenizer = struct {
             .alloc = alloc,
             .escaping = false,
             .comment_depth = 0,
+            .is_start_of_thing = true,
+            .fn_type = null,
         };
     }
     pub fn deinit(self:*Tokenizer) void {
@@ -136,6 +147,8 @@ pub const Tokenizer = struct {
                     }
                 },
                 ';' => {
+                    defer self.is_start_of_thing = true;
+
                     if (self.mem.items.len > 0) {
                         try stderr.print(
                             "unexpected token (mem not empty |{s}| from {s}): {c}\n",
@@ -169,6 +182,12 @@ pub const Tokenizer = struct {
             if (as != .COMMENT) self.comment();
         } else
             self.comment();
+
+        if (self.is_start_of_thing and !std.ascii.isWhitespace(self.cur)) {
+            self.fn_type = switch (self.cur) {
+                else => null,
+            };
+        }
 
         return self.cur;
     }
