@@ -163,7 +163,12 @@ pub const Tokenizer = struct {
         self.pos = if (self.pos) |p| p + 1 else 0;
         if (self.pos.? >= self.input.len) return null;
         self.cur = self.input[self.pos.?];
-        if (self.cur == '#' and self.peek() == '(' and !self.is_string()) self.comment();
+
+        const is_comment = self.cur == '#' and self.peek() == '(' and !self.is_string();
+        if (is_comment) if (self.parsing_as) |as| {
+            if (as != .COMMENT) self.comment();
+        } else
+            self.comment();
 
         return self.cur;
     }
