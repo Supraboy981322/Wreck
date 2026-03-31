@@ -96,7 +96,7 @@ fn main(args []flag) bool {
         @std.os.get_usr_dir()
         "Pictures"
         "Screenshots"
-        filename
+        filename.contents
     ];
 
     //lists also have iterators, and 'doEach' is similar to 'forEach'
@@ -122,7 +122,7 @@ fn main(args []flag) bool {
     hyprshot(
         [[ m ]] mode_str
         [[ o ]] @std.path.base(paths.itr.mem)
-        [[ f ]] filename
+        [[ f ]] filename.contents
     //if a function call (or shell command) fails, you can handle
     //  it manually, or by default let the interpreter panic if unhandled,
     //    you can disable the panic or define a custom function to handle it
