@@ -30,6 +30,7 @@ pub const Token = struct {
         SHELL_CMD,
         BUILTIN,
         LOCAL,
+        EXTERNAL,
     };
 
     pub fn print(self:*Token) !void {
