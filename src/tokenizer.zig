@@ -154,6 +154,9 @@ pub const Tokenizer = struct {
 
             switch (b) {
                 '(' => {
+                    if (self.fn_type) |_| {} else {
+                        self.fn_type = .LOCAL;
+                    }
                     const func = try self.new_token(.FN, null);
                     try self.res.append(self.alloc, func);
                     if (!try self.get_args()) {
@@ -196,8 +199,12 @@ pub const Tokenizer = struct {
 
         if (self.is_start_of_thing and !std.ascii.isWhitespace(self.cur)) {
             self.fn_type = switch (self.cur) {
+                '#' => .BUILTIN,
+                '$' => .SHELL_CMD,
+                '@' => .EXTERNAL,
                 else => null,
             };
+            self.is_start_of_thing = false;
         }
 
         return self.cur;
