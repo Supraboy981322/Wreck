@@ -47,17 +47,18 @@ pub const Exec = struct {
     pub fn do(self:*Exec) !void {
         while (self.next()) |token| {
             switch (token.type) {
-                .FN => {
-                    const argv = try self.get_args();
-                    defer {
-                        tokenizer.free(self.alloc, argv); 
-                        self.alloc.free(argv);
-                    }
-                    try self.run(token, argv);
+                .FN => switch (token.fn_type.?) {
+                    .SHELL_CMD => {
+                        const argv = try self.get_args();
+                        defer {
+                            tokenizer.free(self.alloc, argv); 
+                            self.alloc.free(argv);
+                        }
+                        try self.run(token, argv);
+                    },
+                    else => std.debug.panic("TODO: FnType.{s}", .{@tagName(token.fn_type.?)})
                 },
-                else => @panic(try std.fmt.allocPrint(
-                    self.alloc, "UNKNOWN TOKEN ({t} |{s}|)", .{token.type, token.raw})
-                ),
+                else => std.debug.panic("UNKNOWN TOKEN ({t} |{s}|)", .{token.type, token.raw}),
             }
         }
     }
