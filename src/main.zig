@@ -8,16 +8,26 @@ const stdout = globs.stdout;
 const stderr = globs.stderr;
 
 pub fn main() !void {
-    const code =
-    \\printf("\e[33mfoo\e[0m '%d' \" \n" 1);
-    \\curl([[ f silent S L ]] 'https://archive.google/heart');
-    ;
-    
-    try stdout.print("#+BEGIN_SRC\n{s}\n#+END_SRC\n", .{code});
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
+
+    const code:[]u8 = b: {
+        var args = std.process.args();
+        defer args.deinit();
+        _ = args.skip();
+
+        if (args.next()) |a| break :b try std.fs.cwd().readFileAlloc(
+            alloc, a, std.math.maxInt(usize)
+        ) else {
+            try stderr.print("not enough args, need a file to run\n", .{});
+            std.process.exit(1);
+        }
+    };
+    defer alloc.free(code);
+    
+    try stdout.print("#+BEGIN_SRC\n{s}\n#+END_SRC\n", .{code});
 
     var arena = std.heap.ArenaAllocator.init(alloc);
     defer {
