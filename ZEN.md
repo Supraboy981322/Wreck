@@ -1,0 +1,43 @@
+# The Zen of Wreck
+
+- Commas are for the elderly languages
+- There is no such thing as a scripting language, only scripts (and limited or DSLs)
+  - Is this "scripting" language in the room with you now?
+- A language should have many builtins (excluding the standard library)
+- A generic should be nearly universal
+- No functionality should be restricted to non-generics
+- The standard library is called "standard" for a reason, I shouldn't need to import it
+- Most behaviors should have an easy option to disable or alter it
+- It should be exceedingly obvious when calling an external dependency
+- Individual files should be able to override the project's setup
+- No functionality is dumb, only dumb usage of said functionality
+- Turnaries are great
+- Not understanding something doesn't mean it's bad
+- Syntax is only bad if no one uses it
+- A language shouldn't be "unstable" for 11 years
+- A bad programmer is only as good as his framework
+- Bloat is bad for power users
+- Power users are your best, most loyal users
+- Developers are (usually) power users too
+- The user shouldn't have opinions forced upon them
+- A language which depends on specific IDEs to be usable isn't worth a developer's time
+- The limitations of a language is the fun part, until you're on a time constraint
+- A safe language can't be any better than the logic
+- "Safety" isn't always a worthy trade-off to a skillfully crafted efficient program
+- Arbitrary limitations should at least have the option to be removed
+- Simplicity is (usually) the prefered option
+- The option of simplicity should always have an alternative of complete control
+- Simplicity *can* tradeoff potential control ***if*** there is an equivalent with complete control
+- The programmer should know when he needs complete control, not the package
+- A package should provide full access to all functions and values for developers who wish to use it
+- The developer shouldn't need to fork a dependency to access an unexported function or field
+- Returning an error should include as much information as possible (preferably the state)
+- No tradition is sacred
+- Language guardrails only create a fleet of identically unimaginative programmers
+- A language should foster the expression of a programmer's craft, not impose limitations on them
+- Programming should be an act of fun, automating it only makes it a chore
+- Only programmers who enjoy what they do will survive, the rest will atrophy
+- Automation (and/or generation) will never beat a hand-crafted work of art or efficiency
+- An incremental improvement shouldn't break muscle memory unless absolutely necessary
+- Functionality should never be removed for an alternative until the alternative is ready
+- A language should include an ergonomic configuration language derrived from its syntax
