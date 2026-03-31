@@ -1,0 +1,7 @@
+printf("\e[33mfoo\e[0m '%d' \" \n" 1);
+curl([[ f silent S L ]] 'https://archive.google/heart');
+#(? (1 < 0) {
+  printf("foo\n");
+} ?! {
+  printf("bar\n");
+})
