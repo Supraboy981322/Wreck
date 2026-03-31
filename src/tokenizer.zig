@@ -194,7 +194,7 @@ pub const Tokenizer = struct {
             try stderr.print("error attempting to parse args: (mem not empty)\n", .{});
             std.process.exit(1);
         }
-        while (self.next() != null and self.cur != ')') {
+        while (self.next() != null and (self.cur != ')' or self.is_string())) {
             if (std.ascii.isWhitespace(self.cur)) if (self.parsing_as) |as| {
                 if (as == .STRING)
                     try self.mem.append(self.alloc, self.cur)
@@ -204,7 +204,7 @@ pub const Tokenizer = struct {
                     );
                     std.process.exit(1);
                 }
-            } else {} else if (self.escaping) { 
+            } else {} else if (self.escaping) {
                 try self.mem.append(
                     self.alloc, switch (self.cur) {
                         // TODO: octal, decimal, hex, and string interpolation 
@@ -331,7 +331,6 @@ pub const Tokenizer = struct {
     }
 
     pub fn free(self:*Tokenizer, tokens:[]Token) void {
-        _ = .{ self, tokens };
         for (tokens) |t| self.alloc.free(t.raw);
     }
 };
