@@ -206,6 +206,7 @@ pub const Tokenizer = struct {
                 else => null,
             };
             self.is_start_of_thing = false;
+            return self.next();
         }
 
         return self.cur;
