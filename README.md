@@ -30,13 +30,13 @@ I currently plan to make the syntax something like this (for example) (not every
 
 ```wreck
 //declare the package name and file setup
-pkg primary [[
+pkg primary (
     //imports
-    needed_pkgs = {
+    [[ needed_pkgs ]] {
         "insert some repo url here"
     }
     //I'll probably have more options here
-]];
+);
 
 //'set' is equivalent to 'const'
 set version = "1.0.0";
