@@ -48,7 +48,7 @@ let mode = enum { NORMAL SELECT }.NORMAL;
 
 #(the program entry-point
     flag is a datatype similar to a string, but it has some extra stuff)
-fn main(args []flag) bool {
+fn main(args flags) bool {
     #(an if statement)
     ? (args.len < 1) {
         #(flags can be passed to functions similar to a shell command,
@@ -115,7 +115,7 @@ fn main(args []flag) bool {
         .NORMAL { "active" }
     }
     
-    #(flags can be passed to shell commands using the []flag datatype
+    #(flags can be passed to shell commands using the flags datatype
         by default, single-character flags are converted to (for example) '-m'
           and multi-letter flags are converted to (for example) '--foo',
             you can flip this behavior for a specific flag by *[syntax TBD]*)
