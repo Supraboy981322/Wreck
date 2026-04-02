@@ -9,16 +9,19 @@ const stderr = globs.stderr;
 pub const Token = struct {
     raw: []u8,
     type: @This().Type,
-    value_type: ?@This().ValueType,
-    thing_type:?@This().ThingType,
-    symbol_type:?@This().SymbolOrOperator,
+    value_type: ?@This().ValueType = null,
+    thing_type:?@This().ThingType = null,
+    symbol_type:?@This().Symbol = null,
+    keyword_type:?@This().Keyword = null,
 
     pub const Type = enum {
         INVALID,
         FN,
         VALUE,
-        SYMBOLorOPERATOR,
+        SYMBOL,
+        KEYWORD,
     };
+
     pub const ValueType = enum {
         UNKNOWN,
         VOID,
@@ -27,6 +30,7 @@ pub const Token = struct {
         STRING,
         COMMENT,
     };
+
     pub const ThingType = enum {
         SHELL_CMD,
         BUILTIN,
@@ -34,14 +38,17 @@ pub const Token = struct {
         EXTERNAL,
     };
 
-    pub const SymbolOrOperator = enum {
-        @"?",   @"if",
+    pub const Symbol = enum {
         @"{",   @"}",
         @"<",   @">",
         @"=",   @"==",
         @">=",  @"<=",
-        @"and", @"or", @"xor",
         @";",
+    };
+    
+    pub const Keyword = enum {
+        @"?",   @"if",
+        @"and", @"or", @"xor",
     };
 
     pub const Errors = error {
@@ -84,6 +91,11 @@ pub const Token = struct {
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
+        if (self.keyword_type) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+            .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
+        );
 
         try stdout.print("{s}", .{fmted.items}); 
     }
@@ -93,9 +105,14 @@ pub const Token = struct {
         return self.value_type.? == value_type;
     }
 
-    pub fn is_symbol(self:*Token, check:@This().SymbolOrOperator) bool {
-        if (self.type != .SYMBOLorOPERATOR) return false;
+    pub fn is_symbol(self:*Token, check:@This().Symbol) bool {
+        if (self.type != .SYMBOL) return false;
         return self.symbol_type.? == check;
+    }
+
+    pub fn is_keyword(self:*Token, check:@This().Keyword) bool {
+        if (self.type != .KEYWORD) return false;
+        return self.keyword_type.? == check;
     }
 
     pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
@@ -105,6 +122,7 @@ pub const Token = struct {
             .value_type = self.value_type,
             .thing_type = self.thing_type,
             .symbol_type = self.symbol_type,
+            .keyword_type = self.keyword_type,
         };
     }
 
@@ -179,19 +197,15 @@ pub const Tokenizer = struct {
             self.parsing_as = null;
         }
         const raw = try self.dump_mem();
-        if (raw.len < 1) {
-            try stderr.print(
-                "unexpected token (mem empty from {s}): |{c}|\n",
-                .{if (parsing) |as| @tagName(as) else "NOTHING", self.cur}
-            );
-            std.process.exit(1);
-        }
+
+        if (raw.len < 1)
+            try self.unexpected(null);
+
         return .{
             .raw  = raw,
             .type = expecting,
             .value_type = parsing,
             .thing_type = self.thing_type,
-            .symbol_type = null,
         };
     }
 
@@ -201,18 +215,46 @@ pub const Tokenizer = struct {
     ) !Token {
         const thing = if (literal.len > 0) literal else self.mem.items;
         const symbol = std.meta.stringToEnum(
-            Token.SymbolOrOperator, thing
+            Token.Symbol, thing
         ) orelse {
-            try stdout.print("unexpected token: |{s}|\n", .{thing});
-            std.process.exit(1);
+            try self.unexpected(thing);
+            unreachable;
         };
         return .{
             .raw = try self.alloc.dupe(u8, literal),
-            .type = .SYMBOLorOPERATOR,
-            .value_type = null,
-            .thing_type = null,
+            .type = .SYMBOL,
             .symbol_type = symbol,
         };
+    }
+    
+    fn new_keyword_token(
+        self:*Tokenizer,
+        literal:[]u8,
+    ) !Token {
+        const thing = if (literal.len > 0) literal else self.mem.items;
+        const keyword = std.meta.stringToEnum(
+            Token.Keyword, thing
+        ) orelse {
+            try self.unexpected(thing);
+            unreachable;
+        };
+        return .{
+            .raw = try self.alloc.dupe(u8, literal),
+            .type = .KEYWORD,
+            .keyword_type = keyword,
+        };
+    }
+
+    pub fn unexpected(self:*Tokenizer, thing:?[]u8) !void {
+        try stdout.print(
+            "unexpected token (|{s}| from {s}): {c}\n",
+            .{
+                if (thing) |uh| uh else self.mem.items,
+                if (self.parsing_as) |as| @tagName(as) else "NOTHING",
+                self.cur
+            }
+        );
+        std.process.exit(1);
     }
 
     pub fn do(self:*Tokenizer) ![]Token {
@@ -238,17 +280,9 @@ pub const Tokenizer = struct {
                 ';' => {
                     defer self.is_start_of_thing = true;
 
-                    if (self.mem.items.len > 0) {
-                        try stderr.print(
-                            "unexpected token (mem not empty |{s}| from {s}): {c}\n",
-                            .{
-                                self.mem.items,
-                                if (self.parsing_as) |as| @tagName(as) else "NOTHING",
-                                self.cur
-                            }
-                        );
-                        std.process.exit(1);
-                    }
+                    if (self.mem.items.len > 0)
+                        try self.unexpected(null);
+
                     try self.res.append(self.alloc, try self.new_symbol_token(@constCast(";")));
                 },
                 else => try self.mem.append(self.alloc, b),
@@ -350,11 +384,7 @@ pub const Tokenizer = struct {
                 // TODO: lists
                 '[' => if (!self.is_string()) {
                     if (self.parsing_as) |_| {
-                        try stderr.print(
-                            "unexpected '[' while parsing args (expected {?t})\n",
-                            .{ self.parsing_as }
-                        );
-                        std.process.exit(1);
+                        try self.unexpected(@constCast("["));
                     } else if (self.peek() == '[')
                         try self.consume_flags()
                     else
