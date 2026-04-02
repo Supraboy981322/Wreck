@@ -10,7 +10,7 @@ pub const Token = struct {
     raw: []u8,
     type: @This().Type,
     value_type: ?@This().ValueType,
-    fn_type:?@This().FnType,
+    thing_type:?@This().ThingType,
     symbol_type:?@This().SymbolOrOperator,
 
     pub const Type = enum {
@@ -27,7 +27,7 @@ pub const Token = struct {
         STRING,
         COMMENT,
     };
-    pub const FnType = enum {
+    pub const ThingType = enum {
         SHELL_CMD,
         BUILTIN,
         LOCAL,
@@ -74,7 +74,7 @@ pub const Token = struct {
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 4, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
-        if (self.fn_type) |thing| try fmted.print(
+        if (self.thing_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
@@ -103,7 +103,7 @@ pub const Token = struct {
             .raw = try alloc.dupe(u8, self.raw),
             .type = self.type,
             .value_type = self.value_type,
-            .fn_type = self.fn_type,
+            .thing_type = self.thing_type,
             .symbol_type = self.symbol_type,
         };
     }
@@ -140,7 +140,7 @@ pub const Tokenizer = struct {
     escaping:bool,
     comment_depth:usize,
     is_start_of_thing:bool,
-    fn_type:?Token.FnType,
+    thing_type:?Token.ThingType,
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         return .{
@@ -156,7 +156,7 @@ pub const Tokenizer = struct {
             .escaping = false,
             .comment_depth = 0,
             .is_start_of_thing = true,
-            .fn_type = null,
+            .thing_type = null,
         };
     }
     pub fn deinit(self:*Tokenizer) void {
@@ -190,7 +190,7 @@ pub const Tokenizer = struct {
             .raw  = raw,
             .type = expecting,
             .value_type = parsing,
-            .fn_type = self.fn_type,
+            .thing_type = self.thing_type,
             .symbol_type = null,
         };
     }
@@ -210,7 +210,7 @@ pub const Tokenizer = struct {
             .raw = try self.alloc.dupe(u8, literal),
             .type = .SYMBOLorOPERATOR,
             .value_type = null,
-            .fn_type = null,
+            .thing_type = null,
             .symbol_type = symbol,
         };
     }
@@ -224,11 +224,11 @@ pub const Tokenizer = struct {
 
             switch (b) {
                 '(' => {
-                    if (self.fn_type) |_| {} else {
-                        self.fn_type = .LOCAL;
+                    if (self.thing_type) |_| {} else {
+                        self.thing_type = .LOCAL;
                     }
                     const func = try self.new_token(.FN, null);
-                    self.fn_type = null;
+                    self.thing_type = null;
                     try self.res.append(self.alloc, func);
                     if (!try self.get_args()) {
                         try stderr.print("failed to get args\n", .{});
@@ -269,7 +269,7 @@ pub const Tokenizer = struct {
             self.comment();
 
         if (self.is_start_of_thing and !std.ascii.isWhitespace(self.cur)) {
-            self.fn_type = switch (self.cur) {
+            self.thing_type = switch (self.cur) {
                 '#' => .BUILTIN,
                 '$' => .SHELL_CMD,
                 '@' => .EXTERNAL,
