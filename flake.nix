@@ -1,5 +1,5 @@
 {
-  description = "a scripting language";
+  description = "wreck";
 
   inputs = {
     # nixpkgs unstable for latest versions
