@@ -11,12 +11,13 @@ pub const Token = struct {
     type: @This().Type,
     value_type: ?@This().ValueType,
     fn_type:?@This().FnType,
+    symbol_type:?@This().SymbolOrOperator,
 
     pub const Type = enum {
         INVALID,
         FN,
         VALUE,
-        EOX,
+        SYMBOLorOPERATOR,
     };
     pub const ValueType = enum {
         UNKNOWN,
@@ -33,24 +34,68 @@ pub const Token = struct {
         EXTERNAL,
     };
 
+    pub const SymbolOrOperator = enum {
+        @"?",   @"if",
+        @"{",   @"}",
+        @"<",   @">",
+        @"=",   @"==",
+        @">=",  @"<=",
+        @"and", @"or", @"xor",
+        @";",
+    };
+
+    pub const Errors = error {
+        IsNotFlag,
+    };
+
     pub fn print(self:*Token) !void {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer _ = arena.deinit();
-        try stdout.print(
-            "\x1b[0;33mraw\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}} "
-                ++ "\x1b[0;34mtype\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}} "
-                ++ "\x1b[0;35mvalue_type\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+        const alloc = arena.allocator();
+
+        var fmted = try std.ArrayList(u8).initCapacity(alloc, 0);
+        defer _ = fmted.deinit(alloc);
+
+        try fmted.print(
+            alloc,
+            "\x1b[0;3{d}mraw\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\n\t"
+                ++ "\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\n",
             .{
-                try parser.unescape(arena.allocator(), self.raw),
-                @tagName(self.type),
-                @tagName(if (self.value_type) |t| t else .VOID),
+                3, try parser.unescape(arena.allocator(), self.raw),
+                4, @typeName(@TypeOf(self.type)), @tagName(self.type)
             }
         );
+
+        //all this comptime and I can't even put predefined, similar enum types in an array?
+        //  pretty stupid if you ask me
+
+        if (self.value_type) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+            .{ 4, @typeName(@TypeOf(thing)), @tagName(thing), }
+        );
+        if (self.fn_type) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
+        );
+        if (self.symbol_type) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
+        );
+
+        try stdout.print("{s}", .{fmted.items}); 
     }
 
-    pub fn is_flag(self:*Token) bool {
+    pub fn is_value_type(self:*Token, value_type:@This().ValueType) bool {
         if (self.type != .VALUE) return false;
-        return self.value_type.? == .FLAG;
+        return self.value_type.? == value_type;
+    }
+
+    pub fn is_symbol(self:*Token, check:@This().SymbolOrOperator) bool {
+        if (self.type != .SYMBOLorOPERATOR) return false;
+        return self.symbol_type.? == check;
     }
 
     pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
@@ -59,7 +104,21 @@ pub const Token = struct {
             .type = self.type,
             .value_type = self.value_type,
             .fn_type = self.fn_type,
+            .symbol_type = self.symbol_type,
         };
+    }
+
+    pub fn expand_flag(self:*Token, alloc:std.mem.Allocator) ![]u8 {
+        if (!self.is_value_type(.FLAG)) return @This().Errors.IsNotFlag;
+        
+        var res = try std.ArrayList(u8).initCapacity(alloc, 0);
+        defer _ = res.deinit(alloc);
+
+        try res.append(alloc, '-');
+        if (self.raw.len > 1) try res.append(alloc, '-');
+        try res.appendSlice(alloc, self.raw);
+
+        return try res.toOwnedSlice(alloc);
     }
 };
 
@@ -132,26 +191,36 @@ pub const Tokenizer = struct {
             .type = expecting,
             .value_type = parsing,
             .fn_type = self.fn_type,
+            .symbol_type = null,
         };
     }
 
     fn new_symbol_token(
         self:*Tokenizer,
-        comptime literal:[]const u8,
-        token_type:Token.Type,
-    ) Token {
-        _ = self;
+        literal:[]u8,
+    ) !Token {
+        const thing = if (literal.len > 0) literal else self.mem.items;
+        const symbol = std.meta.stringToEnum(
+            Token.SymbolOrOperator, thing
+        ) orelse {
+            try stdout.print("unexpected token: |{s}|\n", .{thing});
+            std.process.exit(1);
+        };
         return .{
-            .raw = @constCast(literal),
-            .type = token_type,
+            .raw = try self.alloc.dupe(u8, literal),
+            .type = .SYMBOLorOPERATOR,
             .value_type = null,
             .fn_type = null,
+            .symbol_type = symbol,
         };
     }
 
     pub fn do(self:*Tokenizer) ![]Token {
         loop: while (self.next()) |b| {
-            if (std.ascii.isWhitespace(b)) continue :loop;
+            if (std.ascii.isWhitespace(b)) if (self.mem.items.len > 0 and !self.is_string()) {
+                try self.res.append(self.alloc, try self.new_symbol_token(self.mem.items));
+                continue :loop;
+            } else continue :loop;
 
             switch (b) {
                 '(' => {
@@ -159,6 +228,7 @@ pub const Tokenizer = struct {
                         self.fn_type = .LOCAL;
                     }
                     const func = try self.new_token(.FN, null);
+                    self.fn_type = null;
                     try self.res.append(self.alloc, func);
                     if (!try self.get_args()) {
                         try stderr.print("failed to get args\n", .{});
@@ -179,7 +249,7 @@ pub const Tokenizer = struct {
                         );
                         std.process.exit(1);
                     }
-                    try self.res.append(self.alloc, self.new_symbol_token(";", .EOX));
+                    try self.res.append(self.alloc, try self.new_symbol_token(@constCast(";")));
                 },
                 else => try self.mem.append(self.alloc, b),
             }

@@ -69,11 +69,11 @@ pub const Exec = struct {
             tokenizer.free(self.alloc, mem.items);
             _ = mem.deinit(self.alloc);
         }
-        loop: while (self.peek()) |tok| {
+        loop: while (self.peek()) |*devilish_const_token| {
+            var token = @constCast(devilish_const_token);
             _ = self.next();
-            if (tok.type != .EOX) {
-                //try @constCast(&tok).print();
-                try mem.append(self.alloc, tok);
+            if (!token.is_symbol(.@";")) {
+                try mem.append(self.alloc, token.*);
             } else
                 break :loop;
         }
@@ -87,15 +87,11 @@ pub const Exec = struct {
             _ = argv.deinit(self.alloc);
         }
         try argv.append(self.alloc, try self.alloc.dupe(u8, cmd.raw));
-        for (args) |a| {
+        for (args) |*a| {
                 switch (a.value_type.?) {
 
                 .FLAG => {
-                    const converted = if (a.raw.len > 1)
-                        try std.fmt.allocPrint(self.alloc, "--{s}", .{ a.raw })
-                    else
-                        try std.fmt.allocPrint(self.alloc, "-{s}", .{ a.raw });
-                    try argv.append(self.alloc, converted);
+                    try argv.append(self.alloc, try a.expand_flag(self.alloc));
                 },
 
                 else => try argv.append(self.alloc, try self.alloc.dupe(u8, a.raw)),
