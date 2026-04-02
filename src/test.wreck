@@ -3,6 +3,8 @@ $printf("\e[33mfoo\e[0m '%d' \" \n" 1);
 
 $curl([[ f silent S L ]] #(some comment between) 'https://archive.google/heart');
 
+#(comment with an escaped \))
+
 #(? (1 < 0) {
   #(nested #(comments #(work)))
   printf("foo\n");
