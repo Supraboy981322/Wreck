@@ -72,17 +72,17 @@ pub const Token = struct {
         if (self.value_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 4, @typeName(@TypeOf(thing)), @tagName(thing), }
+            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
         if (self.thing_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
+            .{ 6, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
         if (self.symbol_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
+            .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
 
         try stdout.print("{s}", .{fmted.items}); 
