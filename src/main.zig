@@ -44,13 +44,6 @@ pub fn main() !void {
     try stderr.print("\ntokenized:\n", .{});
     try tokenizer.print(tokens);
 
-    try stdout.print("\ntranspiled:\n", .{});
-    var transpiler = try parser.Transpiler.init(allocator, tokens);
-    defer transpiler.deinit();
-    const shell = try transpiler.to_shell();
-    defer arena.allocator().free(shell);
-    try stdout.print("{s}\n", .{shell});
-
     try stderr.print("\noutput:\n", .{});
     var exec = try Exec.init(tokens, allocator);//alloc); // TODO: cleanup allocation
     defer exec.deinit();
