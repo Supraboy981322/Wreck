@@ -433,11 +433,17 @@ pub const Tokenizer = struct {
         self.parsing_as = .COMMENT;
         defer self.parsing_as = was_parsing;
 
-        while (self.comment_depth > 0 and self.next() != null) {
-            if (self.cur == '(')
-                self.comment_depth += 1
-            else if (self.cur == ')')
-                self.comment_depth -= 1;
+        loop: while (self.comment_depth > 0 and self.next() != null) {
+            if (self.escaping) {
+                self.escaping = false;
+                continue :loop;
+            }
+            switch (self.cur) {
+                '(' => self.comment_depth += 1,
+                ')' => self.comment_depth -= 1,
+                '\\' => self.escaping = true,
+                else => {},
+            }
         }
     }
 
