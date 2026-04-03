@@ -9,3 +9,9 @@ pub const dupe_keywords = struct {
     pub var @"else" = [_]Keyword{ .@"?!", .@"else" };
     pub var @"if" = [_]Keyword{ .@"?", .@"if" };
 };
+
+//when the stupid scoped allocators have a bug where a seg-fault only occurs if value isn't used in IO operation
+pub fn discard(thing:anytype) void {
+    var wr = &@constCast(&std.Io.Writer.Discarding.init(&.{})).writer;
+    wr.print("{any}", .{thing}) catch {};
+}
