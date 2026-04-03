@@ -73,8 +73,8 @@ pub const Token = struct {
             "\x1b[0;3{d}mraw\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\n\t"
                 ++ "\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\n",
             .{
-                3, try parser.unescape(arena.allocator(), self.raw),
-                4, @typeName(@TypeOf(self.type)), @tagName(self.type)
+                1, try parser.unescape(arena.allocator(), self.raw),
+                2, @typeName(@TypeOf(self.type)), @tagName(self.type)
             }
         );
 
@@ -84,22 +84,37 @@ pub const Token = struct {
         if (self.value_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
+            .{ 3, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
         if (self.thing_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 6, @typeName(@TypeOf(thing)), @tagName(thing), }
+            .{ 4, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
         if (self.symbol_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
+            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
+        );
+        if (self.keyword_type) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
+            .{ 6, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
         if (self.keyword_type) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
+        );
+        if (self.parsed_num) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{d}\x1b[1;37m}}\x1b[0m\n",
+            .{ 7, @typeName(@TypeOf(thing)), thing, }
+        );
+        if (self.bool_value) |thing| try fmted.print(
+            alloc,
+            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{}\x1b[1;37m}}\x1b[0m\n",
+            .{ 7, @typeName(@TypeOf(thing)), thing, }
         );
 
         try stdout.print("{s}", .{fmted.items}); 
