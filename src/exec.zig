@@ -78,17 +78,35 @@ pub const Exec = struct {
                                 self.alloc,
                                 try self.collect(.@")")
                             )).bool_value;
-                            if (self.conditional_res.?) {
+                            defer self.conditional_res = false;
+                            const if_true = b: {
                                 if (self.next_is_symbol(.@"{")) {
                                     _ = self.next();
-                                    for (try self.collect_depth(.@"{", .@"}")) |*tok| {
-                                        try @constCast(tok).print();
-                                    }
-                                    if (self.next_is_keyword(.@"?!")) {
-                                        _ = self.next();
-                                        _ = try self.collect_depth(.@"{", .@"}");
-                                    }
+                                    break :b try self.collect_depth(.@"{", .@"}");
+                                } else
+                                   @panic("TODO: if statement with no braces");
+                            };
+                            const if_false:?[]Token = b: {
+                                if (self.next_is_keyword(.@"?!")) {
+                                    _ = self.next();
+                                    break :b try self.collect_depth(.@"{", .@"}");
+                                } else
+                                    break :b null;
+                            };
+                            if (self.conditional_res.?) {
+                                if (if_false) |toks| for (toks) |*tok| {
+                                    @constCast(tok).free(self.alloc);
+                                };
+                                for (if_true) |*tok| {
+                                    try @constCast(tok).print();
                                 }
+                            } else {
+                                for (if_true) |*tok| {
+                                    @constCast(tok).free(self.alloc);
+                                }
+                                if (if_false) |toks| for (toks) |*tok| {
+                                    try @constCast(tok).print();
+                                };
                             }
                         },
                         else => std.debug.panic(
