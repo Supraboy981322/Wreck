@@ -193,8 +193,13 @@ pub const Tokenizer = struct {
     thing_type:?Token.ThingType,
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
+        const offset = if (in[0] == '#' and in[1] == '!') b: {
+            var i:usize = 0;
+            while (in[i] != '\n') : (i += 1) {}
+            break :b i;
+        } else 0;
         return .{
-            .input = in,
+            .input = in[offset..],
             .pos = null,
             .string_type = 0,
             .expected_type = .INVALID,
