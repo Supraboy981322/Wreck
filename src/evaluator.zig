@@ -58,7 +58,13 @@ pub const conditional = struct {
         var mem = try std.ArrayList(Token).initCapacity(alloc, 0);
         defer _ = mem.deinit(alloc);
 
-        var final:Token = .{ .raw = @constCast(""), .type = .VALUE, .value_type = .BOOL };
+        var final:Token = .{
+            .raw = @constCast(""),
+            .type = .VALUE,
+            .value_type = .BOOL,
+            .line_number = 0,
+            .line_pos = 0,
+        };
 
         var last_keyword:?tokenizer.Token.Keyword = null;
 

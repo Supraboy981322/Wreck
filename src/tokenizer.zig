@@ -16,6 +16,9 @@ pub const Token = struct {
     parsed_num:?usize = null, // TODO: other number types
     bool_value:?bool = null,
 
+    line_number:usize,
+    line_pos:usize,
+
     pub const Type = enum {
         INVALID,
         FN,
@@ -146,6 +149,8 @@ pub const Token = struct {
             .keyword_type = self.keyword_type,
             .parsed_num = self.parsed_num,
             .bool_value = self.bool_value,
+            .line_number = self.line_number,
+            .line_pos = self.line_pos,
         };
     }
 
@@ -253,6 +258,8 @@ pub const Tokenizer = struct {
             .type = expecting,
             .value_type = parsing,
             .thing_type = self.thing_type,
+            .line_number = self.line_num,
+            .line_pos = self.line_pos,
         };
     }
 
@@ -269,6 +276,8 @@ pub const Tokenizer = struct {
             .raw = try self.alloc.dupe(u8, thing),
             .type = .SYMBOL,
             .symbol_type = symbol,
+            .line_number = self.line_num,
+            .line_pos = self.line_pos,
         };
     }
     
@@ -286,6 +295,8 @@ pub const Tokenizer = struct {
             .raw = try self.alloc.dupe(u8, thing),
             .type = .KEYWORD,
             .keyword_type = keyword,
+            .line_number = self.line_num,
+            .line_pos = self.line_pos,
         };
     }
 
@@ -317,6 +328,8 @@ pub const Tokenizer = struct {
             .type = .VALUE,
             .value_type = .NUM,
             .parsed_num = parsed,
+            .line_number = self.line_num,
+            .line_pos = self.line_pos,
         };
     }
 
