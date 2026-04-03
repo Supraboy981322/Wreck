@@ -84,6 +84,10 @@ pub const Exec = struct {
                                     for (try self.collect_depth(.@"{", .@"}")) |*tok| {
                                         try @constCast(tok).print();
                                     }
+                                    if (self.next_is_keyword(.@"?!")) {
+                                        _ = self.next();
+                                        _ = try self.collect_depth(.@"{", .@"}");
+                                    }
                                 }
                             }
                         },
@@ -96,6 +100,14 @@ pub const Exec = struct {
                 else => std.debug.panic("UNKNOWN TOKEN ({t} |{s}|)", .{token.type, token.raw}),
             }
         }
+    }
+
+    fn next_is_keyword(self:*Exec, thing:Token.Keyword) bool {
+        if (self.peek()) |token| {
+            if (token.type != .KEYWORD) return false;
+            return token.keyword_type.? == thing;
+        }
+        return false;
     }
 
     fn collect(self:*Exec, thing:Token.Symbol) ![]Token {
