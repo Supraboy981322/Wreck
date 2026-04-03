@@ -218,17 +218,16 @@ pub const Tokenizer = struct {
 
     fn new_symbol_token(
         self:*Tokenizer,
-        literal:[]u8,
+        literal:?[]u8,
     ) !Token {
-        const thing = if (literal.len > 0) literal else self.mem.items;
+        try stdout.print("new_symbol_token()\n", .{});
+        const thing = if (literal) |foo| foo else self.mem.items;
+        //const thing = if (literal.len > 0) literal else self.mem.items;
         const symbol = std.meta.stringToEnum(
             Token.Symbol, thing
-        ) orelse {
-            try self.unexpected(thing);
-            unreachable;
-        };
+        ) orelse return Error.INVALID;
         return .{
-            .raw = try self.alloc.dupe(u8, literal),
+            .raw = try self.alloc.dupe(u8, thing),
             .type = .SYMBOL,
             .symbol_type = symbol,
         };
@@ -236,15 +235,17 @@ pub const Tokenizer = struct {
     
     fn new_keyword_token(
         self:*Tokenizer,
-        literal:[]u8,
+        literal:?[]u8,
     ) !Token {
-        const thing = if (literal.len > 0) literal else self.mem.items;
+        try stdout.print("new_keyword_token()\n", .{});
+        const thing = if (literal) |foo| foo else self.mem.items;
+        //const thing = if (literal.len > 0) literal else self.mem.items;
         const keyword = std.meta.stringToEnum(
             Token.Keyword, thing
         ) orelse return Error.INVALID;
 
         return .{
-            .raw = try self.alloc.dupe(u8, literal),
+            .raw = try self.alloc.dupe(u8, thing),
             .type = .KEYWORD,
             .keyword_type = keyword,
         };
@@ -270,24 +271,39 @@ pub const Tokenizer = struct {
         return true;
     }
 
+    fn new_num_token(self:*Tokenizer, thing:?[]u8) !Token {
+        const literal = if (thing) |foo| foo else self.mem.items;
+        const parsed = std.fmt.parseInt(usize, literal, 10) catch return Error.NAN;
+        return .{
+            .raw = try self.alloc.dupe(u8, literal),
+            .type = .VALUE,
+            .value_type = .NUM,
+            .parsed_num = parsed,
+        };
+    }
+
+    fn new_who_knows_what(self:*Tokenizer) !Token {
+        defer self.mem.clearAndFree(self.alloc);
+        const to_try = [_]*const @TypeOf(Tokenizer.new_keyword_token) {
+            &Tokenizer.new_keyword_token,
+            &Tokenizer.new_symbol_token,
+            &Tokenizer.new_num_token,
+        };
+        loop: for (to_try) |f| {
+            return f(self, self.mem.items) catch continue :loop;
+        }
+        return Error.INVALID;
+    }
+
     pub fn do(self:*Tokenizer) ![]Token {
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b)) if (self.mem.items.len > 0 and !self.is_string()) {
 
                 defer self.mem.clearAndFree(self.alloc);
-
-                     
-                const tokenized:Token =
-                    self.new_keyword_token(self.mem.items) catch b: {
-                        break :b self.new_symbol_token(self.mem.items) catch {
-                        break :b .{
-                            .raw = try self.alloc.dupe(u8, self.mem.items),
-                            .type = .VALUE,
-                            .value_type = .NUM,
-                            .parsed_num = try std.fmt.parseInt(usize, self.mem.items, 10),
-                        };
-                    };};
-
+                const tokenized:Token = self.new_who_knows_what() catch {
+                    try self.unexpected(null);
+                    unreachable;
+                };
                 try self.res.append(self.alloc, tokenized);
 
                 continue :loop;
@@ -306,18 +322,28 @@ pub const Tokenizer = struct {
                         std.process.exit(1);
                     }
                 } else {
+                    if (self.mem.items.len > 0) {
+                        const tokenized:Token = self.new_who_knows_what() catch {
+                            try self.unexpected(null);
+                            unreachable;
+                        };
+                        try self.res.append(self.alloc, tokenized);
+                    }
+
                     if (b == '(') self.paren_depth += 1;
-                    if (b == ')') self.paren_depth -= 1; // TODO: handle integer "overflow" (under flow)
+                    // TODO: handle integer "overflow" (under flow)
+                    if (b == ')') self.paren_depth -= 1;
+
                     const new = try self.new_symbol_token(@constCast(&[_]u8{b}));
                     try self.res.append(self.alloc, new);
                 },
-                ';' => {
+                ';', '{', '}' => {
                     defer self.is_start_of_thing = true;
 
                     if (self.mem.items.len > 0)
                         try self.unexpected(null);
-
-                    try self.res.append(self.alloc, try self.new_symbol_token(@constCast(";")));
+                    const new = try self.new_symbol_token(@constCast(&[_]u8{b}));
+                    try self.res.append(self.alloc, new);
                 },
                 else => try self.mem.append(self.alloc, b),
             }
