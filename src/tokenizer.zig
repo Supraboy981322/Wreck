@@ -52,6 +52,7 @@ pub const Token = struct {
     
     pub const Keyword = enum {
         @"?",   @"if",
+        @"?!",  @"else",
         @"and", @"or", @"xor",
         @"fn",
     };
