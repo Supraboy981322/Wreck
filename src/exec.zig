@@ -52,6 +52,7 @@ pub const Exec = struct {
             try stderr.print("\n{s}\n", .{src[offset..end]});
         } else
             try stderr.print("\nsource not available\n", .{});
+        std.process.exit(1);
     }
 
     pub fn do_block(self:*Exec, input:?[]Token) !void {
