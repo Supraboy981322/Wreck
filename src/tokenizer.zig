@@ -161,6 +161,10 @@ pub const Token = struct {
 
         return try res.toOwnedSlice(alloc);
     }
+
+    pub fn free(self:*Token, alloc:std.mem.Allocator) void {
+        alloc.free(self.raw);
+    }
 };
 
 // TODO: no printing, just return error
