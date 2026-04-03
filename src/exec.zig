@@ -42,10 +42,10 @@ pub const Exec = struct {
             var l:usize = 1;
             const offset = for (src, 0..) |b, i| {
                 if (b == '\n') l += 1;
-                if (l == token.line_number) break i;
+                if (l == token.line_number) break i+1;
             } else
                 @panic("failed to find token in source code");
-            const end = for (src[offset..], 0..) |b, i| {
+            const end = for (src[offset..], offset..) |b, i| {
                 if (b == '\n') break i;
             } else
                 @panic("failed to find token in source code");
