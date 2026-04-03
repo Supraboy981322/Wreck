@@ -81,7 +81,7 @@ pub const Exec = struct {
 
                             const if_false:?[]Token = b: {
                                 if (block.next_is_oneof_keywords(&dupes.@"else")) {
-                                    _ = block.next();
+                                    block.skipN(2);
                                     break :b try block.collect_depth(.@"{", .@"}");
                                 } else
                                     break :b null;
@@ -90,11 +90,10 @@ pub const Exec = struct {
                                 @constCast(tok).free(self.alloc);
                             };
 
-                            if (self.conditional_res.?) for (if_true) |*tok| {
-                                    try @constCast(tok).print();
-                            } else if (if_false) |toks| for (toks) |*tok| {
-                                try @constCast(tok).print();
-                            };
+                            try if (self.conditional_res.?)
+                                self.do_block(if_true)
+                            else if (if_false) |toks|
+                                self.do_block(toks);
                         },
                         else => std.debug.panic(
                             "TODO (keyword): {s}\n",
@@ -102,7 +101,11 @@ pub const Exec = struct {
                         ),
                     }
                 },
-                else => std.debug.panic("UNKNOWN TOKEN ({t} |{s}|)", .{token.type, token.raw}),
+                else => {
+                    try if (block.back()) |*t| @constCast(t).print();
+                    for (0..2) |_| if (block.next()) |*t| try @constCast(t).print();
+                    std.debug.panic("UNKNOWN TOKEN ({t} |{s}|)", .{token.type, token.raw});
+                },
             }
         }
     }
@@ -193,10 +196,22 @@ pub const Block = struct {
         self.cur = self.code[self.pos.?];
         return self.cur;
     }
+
+    pub fn back(self:*Block) ?Token {
+        self.pos = if (self.pos) |p| p - 1 else 0;
+        if (self.pos.? < 1) return null;
+        self.cur = self.code[self.pos.?];
+        return self.cur;
+    }
+
     pub fn peek(self:*Block) ?Token {
         const p = if (self.pos) |p| p + 1 else 0;
         if (self.code.len <= p) return null;
         return self.code[p];
+    }
+
+    pub fn skipN(self:*Block, n:usize) void {
+        for (0..n) |_| _ = self.next(); 
     }
 
     fn next_is_keyword(self:*Block, thing:Token.Keyword) bool {
@@ -217,15 +232,20 @@ pub const Block = struct {
         } else false;
     }
 
+    fn cur_is_oneof_keywords(self:*Block, keywords:[]Token.Keyword) bool {
+        return for (keywords) |keyword| {
+            if (self.cur.is_keyword(keyword)) break true;
+        } else false;
+    }
+
     fn collect(self:*Block, thing:Token.Symbol) ![]Token {
         var mem = try std.ArrayList(Token).initCapacity(self.alloc, 0);
         defer {
             tokenizer.free(self.alloc, mem.items);
             _ = mem.deinit(self.alloc);
         }
-        loop: while (self.peek()) |*devilish_const_token| {
+        loop: while (self.next()) |*devilish_const_token| {
             var token = @constCast(devilish_const_token);
-            _ = self.next();
             if (!token.is_symbol(thing)) {
                 try mem.append(self.alloc, token.*);
             } else
@@ -241,9 +261,8 @@ pub const Block = struct {
             _ = mem.deinit(self.alloc);
         }
         var depth:usize = 1;
-        loop: while (self.peek()) |*devilish_const_token| {
+        loop: while (self.next()) |*devilish_const_token| {
             var token = @constCast(devilish_const_token);
-            _ = self.next();
 
             if (token.is_symbol(start))
                 depth += 1
