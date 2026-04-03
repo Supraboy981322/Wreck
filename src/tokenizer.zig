@@ -594,7 +594,7 @@ pub const Tokenizer = struct {
                     '#' => .BUILTIN,
                     '$' => .SHELL_CMD,
                     '@' => .EXTERNAL,
-                    else => null,
+                    else => .LOCAL,
                 };
                 if (token.thing_type != null) {
                     token.raw = token.raw[1..];
