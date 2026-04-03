@@ -76,6 +76,15 @@ pub const Exec = struct {
                         .{ @tagName(token.thing_type.?) }
                     )
                 },
+                .SYMBOL => {
+                    switch (token.symbol_type.?) {
+                        .@"{" => {
+                            const code = try block.collect_depth(.@"{", .@"}");
+                            try self.do_block(code);
+                        },
+                        else => try self.unexpected(token),
+                    }
+                },
                 .KEYWORD => {
                     switch (token.keyword_type.?) {
                         .@"?", .@"if" => {
