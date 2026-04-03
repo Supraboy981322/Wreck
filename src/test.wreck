@@ -7,9 +7,16 @@ $curl([[ f silent S L ]] #(some comment between) 'https://archive.google/heart')
 
 if (1 == 0) {
   #(nested #(comments #(work)))
-  $printf("foo\n");
+  $printf("1 EQUALS 0? WHAT?\n");
+} else {
+  $printf("1 does not equal 0\n");
+}
+
+? (1 > 0) {
+  #(nested #(comments #(work)))
+  $printf("1 is greater-than 0\n");
 } ?! {
-  $printf("bar\n");
+  $printf("1 ISN'T GREATER THAN 0?\n");
 }
 
 #(fn main() bool {
