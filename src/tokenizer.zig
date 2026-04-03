@@ -170,6 +170,9 @@ pub const Error = error {
 
 pub const Tokenizer = struct {
     input:[]const u8,
+    line_num:usize = 1,
+    line_pos:usize = 0,
+
     cur:u8,
     pos:?usize,
     expected_type:Token.Type,
