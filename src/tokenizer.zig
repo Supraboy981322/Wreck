@@ -366,8 +366,6 @@ pub const Tokenizer = struct {
                     try self.res.append(self.alloc, new);
                 },
                 ';', '{', '}' => {
-                    defer self.is_start_of_thing = true;
-
                     try self.add_if_mem();
 
                     if (self.mem.items.len > 0)
@@ -378,10 +376,29 @@ pub const Tokenizer = struct {
                 else => try self.mem.append(self.alloc, b),
             }
         }
+        try self.add_if_mem();
+        try self.context_pass();
         return self.res.toOwnedSlice(self.alloc);
     }
 
+    fn can_be_start_of_thing(self:*Tokenizer) bool {
+        const is_eox = switch (self.cur) {
+            ';', '}' => true,
+            else => false,
+        };
+        const no_mem = self.mem.items.len < 1;
+        const not_string = (!self.is_string() and self.cur != '"' and self.cur != '\'');
+        const is_whitespace = std.ascii.isWhitespace(self.cur);
+        return no_mem and not_string and (is_whitespace or is_eox);
+    }
+
     fn next(self:*Tokenizer) ?u8 {
+        if (self.cur == '\n') {
+            self.line_num += 1;
+            self.line_pos = 0;
+        }
+        self.line_pos += 1;
+
         self.pos = if (self.pos) |p| p + 1 else 0;
         if (self.pos.? >= self.input.len) return null;
         self.cur = self.input[self.pos.?];
@@ -391,17 +408,6 @@ pub const Tokenizer = struct {
             if (as != .COMMENT) self.comment();
         } else
             self.comment();
-
-        if (self.is_start_of_thing and !std.ascii.isWhitespace(self.cur)) {
-            self.thing_type = switch (self.cur) {
-                '#' => .BUILTIN,
-                '$' => .SHELL_CMD,
-                '@' => .EXTERNAL,
-                else => null,
-            };
-            self.is_start_of_thing = false;
-            return self.next();
-        }
 
         return self.cur;
     }
@@ -418,8 +424,11 @@ pub const Tokenizer = struct {
         return self.input[self.pos.?+1];
     }
     fn previous(self:*Tokenizer) u8 {
-        if (self.pos.? < 1) return 0;
-        return self.input[self.pos.?-1];
+        if (self.pos) |p| {
+            if (p < 1) return 0;
+            return self.input[p-1];
+        } else
+            return 0;
     }
 
     fn is_string(self:*Tokenizer) bool {
@@ -460,14 +469,17 @@ pub const Tokenizer = struct {
             } else switch (self.cur) {
                 '"', '\'' => {
                     if (self.parsing_as) |t| {
-                        if (t == .STRING and self.string_type == self.cur) {
+                        if (self.is_string() and self.string_type == self.cur) {
                             if (self.peek() == ')' or self.peek() == ' ') {
                                 self.parsing_as = null;
                                 self.string_type = 0;
                                 const new = try self.new_token(.VALUE, t);
                                 try self.res.append(self.alloc, new);
                             } else
-                                @panic("TODO: 'else {}'");
+                                std.debug.panic(
+                                    "TODO: 'else {{}}' (|{s}| {s} line{{{d}}})",
+                                .{&[_]u8{self.cur, self.peek()}, @tagName(t), self.line_num}
+                                );
                         } else
                             try self.mem.append(self.alloc, self.cur);
                     } else {
@@ -573,6 +585,23 @@ pub const Tokenizer = struct {
 
     pub fn free(self:*Tokenizer, tokens:[]Token) void {
         for (tokens) |t| self.alloc.free(t.raw);
+    }
+
+    pub fn context_pass(self:*Tokenizer) !void {
+        for (self.res.items) |*token| switch (token.type) {
+            .FN => {
+                token.thing_type = switch (token.raw[0]) {
+                    '#' => .BUILTIN,
+                    '$' => .SHELL_CMD,
+                    '@' => .EXTERNAL,
+                    else => null,
+                };
+                if (token.thing_type != null) {
+                    token.raw = token.raw[1..];
+                }
+            },
+            else => {}
+        };
     }
 };
 
