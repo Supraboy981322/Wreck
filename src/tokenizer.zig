@@ -143,6 +143,8 @@ pub const Token = struct {
             .thing_type = self.thing_type,
             .symbol_type = self.symbol_type,
             .keyword_type = self.keyword_type,
+            .parsed_num = self.parsed_num,
+            .bool_value = self.bool_value,
         };
     }
 
