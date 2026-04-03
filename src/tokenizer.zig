@@ -220,7 +220,6 @@ pub const Tokenizer = struct {
         self:*Tokenizer,
         literal:?[]u8,
     ) !Token {
-        try stdout.print("new_symbol_token()\n", .{});
         const thing = if (literal) |foo| foo else self.mem.items;
         //const thing = if (literal.len > 0) literal else self.mem.items;
         const symbol = std.meta.stringToEnum(
@@ -237,7 +236,6 @@ pub const Tokenizer = struct {
         self:*Tokenizer,
         literal:?[]u8,
     ) !Token {
-        try stdout.print("new_keyword_token()\n", .{});
         const thing = if (literal) |foo| foo else self.mem.items;
         //const thing = if (literal.len > 0) literal else self.mem.items;
         const keyword = std.meta.stringToEnum(
