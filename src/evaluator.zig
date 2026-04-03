@@ -81,7 +81,6 @@ pub const conditional = struct {
             }
             if (mem.items.len == 3) {
                 defer {
-                    std.debug.print("{}\n", .{final.bool_value.?});
                     mem.clearAndFree(alloc);
                     last_keyword = null;
                 }
