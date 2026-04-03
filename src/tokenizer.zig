@@ -211,6 +211,16 @@ pub const Tokenizer = struct {
         return try self.mem.toOwnedSlice(self.alloc);
     }
 
+    fn add_if_mem(self:*Tokenizer) !void {
+        if (self.mem.items.len > 0) {
+            const tokenized:Token = self.new_who_knows_what() catch {
+                try self.unexpected(null);
+                unreachable;
+            };
+            try self.res.append(self.alloc, tokenized);
+        }
+    }
+
     fn new_token(
         self:*Tokenizer,
         expecting:Token.Type,
@@ -354,6 +364,8 @@ pub const Tokenizer = struct {
                 },
                 ';', '{', '}' => {
                     defer self.is_start_of_thing = true;
+
+                    try self.add_if_mem();
 
                     if (self.mem.items.len > 0)
                         try self.unexpected(null);
