@@ -45,7 +45,7 @@ pub fn main() !void {
     try tokenizer.print(tokens);
 
     try stderr.print("\noutput:\n", .{});
-    var exec = try Exec.init(tokens, allocator);//alloc); // TODO: cleanup allocation
+    var exec = try Exec.init(tokens, code, allocator);//alloc); // TODO: cleanup allocation
     defer exec.deinit();
     exec.do() catch |e| {
         try stderr.print("{t}\n", .{e});
