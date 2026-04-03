@@ -36,20 +36,51 @@ pub const Exec = struct {
     }
     
     fn unexpected(self:*Exec, token:Token) !void {
-        try stderr.print("unexpected token:\n", .{});
+        try stderr.print("\n\n\x1b[3;31munexpected token:\x1b[0m\n", .{});
         try @constCast(&token).print();
         if (self.source) |src| {
+            var buf = try std.ArrayList(u8).initCapacity(self.alloc, 0);
+            defer _ = buf.deinit(self.alloc);
+
             var l:usize = 1;
             const offset = for (src, 0..) |b, i| {
                 if (b == '\n') l += 1;
                 if (l == token.line_number) break i+1;
-            } else
-                @panic("failed to find token in source code");
+            } else {
+                std.debug.panic(
+                    "failed to find token in source code: |{s}| (line {d}, col {d})",
+                    .{token.raw, token.line_number, token.line_pos}
+                );
+                unreachable;
+            };
+
             const end = for (src[offset..], offset..) |b, i| {
                 if (b == '\n') break i;
-            } else
-                @panic("failed to find token in source code");
-            try stderr.print("\n{s}\n", .{src[offset..end]});
+            } else {
+                std.debug.panic(
+                    "failed to find token in source code: |{s}| (line {d}, col {d})",
+                    .{token.raw, token.line_number, token.line_pos}
+                );
+                unreachable;
+            };
+
+            const the_line = src[offset..end];
+            const before_the_thing = the_line[0..(token.line_pos - token.raw.len) - 1];
+            const the_thing = the_line[token.line_pos - token.raw.len - 1..token.line_pos - 1];
+            const after_the_thing = the_line[token.line_pos - 1..];
+
+            try buf.print(
+                self.alloc,
+                "\n\x1b[38;2;100;100;150m{s}\x1b[31m{s}\x1b[0m{s}\n",
+                .{before_the_thing, the_thing, after_the_thing}
+            );
+            for (before_the_thing) |_|
+                try buf.print(self.alloc, " ", .{});
+
+            for (the_thing) |_|
+                try buf.print(self.alloc, "\x1b[33m^\x1b[0m", .{});
+
+            try stderr.print("{s}\n", .{buf.items});
         } else
             try stderr.print("\nsource not available\n", .{});
         std.process.exit(1);
