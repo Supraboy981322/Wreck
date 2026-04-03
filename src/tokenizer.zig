@@ -596,7 +596,7 @@ pub const Tokenizer = struct {
                     '@' => .EXTERNAL,
                     else => .LOCAL,
                 };
-                if (token.thing_type != null) {
+                if (token.thing_type != .LOCAL) {
                     token.raw = token.raw[1..];
                 }
             },
