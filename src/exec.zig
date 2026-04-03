@@ -13,16 +13,16 @@ const conditional = evaluator.conditional;
 
 pub const Exec = struct {
     in:[]Token,
-    pos:?usize,
+    source:?[]u8,
     alloc:std.mem.Allocator,
     conditional_res:?bool,
 
-    pub fn init(tokens: []Token, owned_alloc:std.mem.Allocator) !Exec {
+    pub fn init(tokens: []Token, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
         //var arena = std.heap.ArenaAllocator.init(owned_alloc);//std.heap.page_allocator);
         //const alloc = arena.allocator();
         var foo =  Exec{
             .in = undefined,
-            .pos = null,
+            .source = source,
             .alloc = owned_alloc,
             .conditional_res = null,
         };
@@ -33,6 +33,25 @@ pub const Exec = struct {
     pub fn deinit(self:*Exec) void {
         _ = self;
         //tokenizer.free(self.alloc, self.in);
+    }
+    
+    fn unexpected(self:*Exec, token:Token) !void {
+        try stderr.print("unexpected token:\n", .{});
+        try @constCast(&token).print();
+        if (self.source) |src| {
+            var l:usize = 1;
+            const offset = for (src, 0..) |b, i| {
+                if (b == '\n') l += 1;
+                if (l == token.line_number) break i;
+            } else
+                @panic("failed to find token in source code");
+            const end = for (src[offset..], 0..) |b, i| {
+                if (b == '\n') break i;
+            } else
+                @panic("failed to find token in source code");
+            try stderr.print("\n{s}\n", .{src[offset..end]});
+        } else
+            try stderr.print("\nsource not available\n", .{});
     }
 
     pub fn do_block(self:*Exec, input:?[]Token) !void {
