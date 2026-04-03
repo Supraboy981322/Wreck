@@ -1,16 +1,19 @@
 const std = @import("std");
 const globs = @import("globs.zig");
 const tokenizer = @import("tokenizer.zig");
+const evaluator = @import("evaluator.zig");
 
 const stderr = globs.stderr;
 const stdout = globs.stdout;
 const Token = tokenizer.Token;
+const conditional = evaluator.conditional;
 
 pub const Exec = struct {
     in:[]Token,
     cur:Token,
     pos:?usize,
     alloc:std.mem.Allocator,
+    conditional_res:?bool,
 
     pub fn init(tokens: []Token, owned_alloc:std.mem.Allocator) !Exec {
         //var arena = std.heap.ArenaAllocator.init(owned_alloc);//std.heap.page_allocator);
@@ -20,6 +23,7 @@ pub const Exec = struct {
             .pos = null,
             .cur = undefined,
             .alloc = owned_alloc,
+            .conditional_res = null,
         };
         foo.in = try tokenizer.dupe(foo.alloc, tokens);
         return foo;
@@ -44,6 +48,10 @@ pub const Exec = struct {
         return if (self.in.len <= self.pos.? + 1) null else self.in[self.pos.?+1];
     }
 
+    fn next_is_symbol(self:*Exec, symbol:Token.Symbol) bool {
+        return if (self.peek()) |*n| @constCast(n).is_symbol(symbol) else false;
+    }
+
     pub fn do(self:*Exec) !void {
         while (self.next()) |token| {
             switch (token.type) {
@@ -56,14 +64,41 @@ pub const Exec = struct {
                         }
                         try self.run(token, argv);
                     },
-                    else => std.debug.panic("TODO: FnType.{s}", .{@tagName(token.thing_type.?)})
+                    else => std.debug.panic(
+                        "TODO: FnType.{s}",
+                        .{ @tagName(token.thing_type.?) }
+                    )
+                },
+                .KEYWORD => {
+                    switch (token.keyword_type.?) {
+                        .@"?", .@"if" => {
+                            //skip .@"("
+                            _ = self.next();
+                            self.conditional_res = (try conditional.do(
+                                self.alloc,
+                                try self.collect(.@")")
+                            )).bool_value;
+                            if (self.conditional_res.?) {
+                                if (self.next_is_symbol(.@"{")) {
+                                    _ = self.next();
+                                    for (try self.collect_depth(.@"{", .@"}")) |*tok| {
+                                        try @constCast(tok).print();
+                                    }
+                                }
+                            }
+                        },
+                        else => std.debug.panic(
+                            "TODO (keyword): {s}\n",
+                            .{@tagName(token.keyword_type.?)}
+                        ),
+                    }
                 },
                 else => std.debug.panic("UNKNOWN TOKEN ({t} |{s}|)", .{token.type, token.raw}),
             }
         }
     }
 
-    fn get_args(self:*Exec) ![]Token {
+    fn collect(self:*Exec, thing:Token.Symbol) ![]Token {
         var mem = try std.ArrayList(Token).initCapacity(self.alloc, 0);
         defer {
             tokenizer.free(self.alloc, mem.items);
@@ -72,12 +107,54 @@ pub const Exec = struct {
         loop: while (self.peek()) |*devilish_const_token| {
             var token = @constCast(devilish_const_token);
             _ = self.next();
-            if (!token.is_symbol(.@";")) {
+            if (!token.is_symbol(thing)) {
                 try mem.append(self.alloc, token.*);
             } else
                 break :loop;
         }
         return try mem.toOwnedSlice(self.alloc);
+    }
+
+    fn collect_depth(self:*Exec, start:Token.Symbol, end:Token.Symbol) ![]Token {
+        var mem = try std.ArrayList(Token).initCapacity(self.alloc, 0);
+        defer {
+            tokenizer.free(self.alloc, mem.items);
+            _ = mem.deinit(self.alloc);
+        }
+        var depth:usize = 1;
+        loop: while (self.peek()) |*devilish_const_token| {
+            var token = @constCast(devilish_const_token);
+            _ = self.next();
+
+            if (token.is_symbol(start))
+                depth += 1
+            else if (token.is_symbol(end))
+                depth -= 1
+            else
+                try mem.append(self.alloc, token.*);
+
+            if (depth == 0)
+                break :loop;
+        }
+        return try mem.toOwnedSlice(self.alloc);
+    }
+
+    fn get_args(self:*Exec) ![]Token {
+        return try self.collect(.@";");
+        //var mem = try std.ArrayList(Token).initCapacity(self.alloc, 0);
+        //defer {
+        //    tokenizer.free(self.alloc, mem.items);
+        //    _ = mem.deinit(self.alloc);
+        //}
+        //loop: while (self.peek()) |*devilish_const_token| {
+        //    var token = @constCast(devilish_const_token);
+        //    _ = self.next();
+        //    if (!token.is_symbol(.@";")) {
+        //        try mem.append(self.alloc, token.*);
+        //    } else
+        //        break :loop;
+        //}
+        //return try mem.toOwnedSlice(self.alloc);
     }
     
     fn string_args(self:*Exec, cmd:Token, args:[]Token) ![][]const u8 {

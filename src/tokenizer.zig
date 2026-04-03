@@ -13,6 +13,8 @@ pub const Token = struct {
     thing_type:?@This().ThingType = null,
     symbol_type:?@This().Symbol = null,
     keyword_type:?@This().Keyword = null,
+    parsed_num:?usize = null, // TODO: other number types
+    bool_value:?bool = null,
 
     pub const Type = enum {
         INVALID,
@@ -29,6 +31,7 @@ pub const Token = struct {
         FLAG,
         STRING,
         COMMENT,
+        BOOL,
     };
 
     pub const ThingType = enum {
@@ -40,6 +43,7 @@ pub const Token = struct {
 
     pub const Symbol = enum {
         @"{",   @"}",
+        @"(",   @")",
         @"<",   @">",
         @"=",   @"==",
         @">=",  @"<=",
@@ -49,6 +53,7 @@ pub const Token = struct {
     pub const Keyword = enum {
         @"?",   @"if",
         @"and", @"or", @"xor",
+        @"fn",
     };
 
     pub const Errors = error {
@@ -143,6 +148,7 @@ pub const Token = struct {
 // TODO: no printing, just return error
 pub const Error = error {
     NAN,
+    INVALID,
 };
 
 pub const Tokenizer = struct {
@@ -155,6 +161,7 @@ pub const Tokenizer = struct {
     res:std.ArrayList(Token),
     alloc:std.mem.Allocator,
     string_type:u8,
+    paren_depth:usize = 0,
     escaping:bool,
     comment_depth:usize,
     is_start_of_thing:bool,
@@ -234,10 +241,8 @@ pub const Tokenizer = struct {
         const thing = if (literal.len > 0) literal else self.mem.items;
         const keyword = std.meta.stringToEnum(
             Token.Keyword, thing
-        ) orelse {
-            try self.unexpected(thing);
-            unreachable;
-        };
+        ) orelse return Error.INVALID;
+
         return .{
             .raw = try self.alloc.dupe(u8, literal),
             .type = .KEYWORD,
@@ -247,7 +252,7 @@ pub const Tokenizer = struct {
 
     pub fn unexpected(self:*Tokenizer, thing:?[]u8) !void {
         try stdout.print(
-            "unexpected token (|{s}| from {s}): {c}\n",
+            "unexpected token (|{s}| from {s}): |{c}|\n",
             .{
                 if (thing) |uh| uh else self.mem.items,
                 if (self.parsing_as) |as| @tagName(as) else "NOTHING",
@@ -257,15 +262,39 @@ pub const Tokenizer = struct {
         std.process.exit(1);
     }
 
+    fn is_keyword(self:*Tokenizer) bool {
+        _ = std.meta.stringToEnum(
+            Token.Keyword, self.mem.items
+        ) orelse
+            return false;
+        return true;
+    }
+
     pub fn do(self:*Tokenizer) ![]Token {
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b)) if (self.mem.items.len > 0 and !self.is_string()) {
-                try self.res.append(self.alloc, try self.new_symbol_token(self.mem.items));
+
+                defer self.mem.clearAndFree(self.alloc);
+
+                     
+                const tokenized:Token =
+                    self.new_keyword_token(self.mem.items) catch b: {
+                        break :b self.new_symbol_token(self.mem.items) catch {
+                        break :b .{
+                            .raw = try self.alloc.dupe(u8, self.mem.items),
+                            .type = .VALUE,
+                            .value_type = .NUM,
+                            .parsed_num = try std.fmt.parseInt(usize, self.mem.items, 10),
+                        };
+                    };};
+
+                try self.res.append(self.alloc, tokenized);
+
                 continue :loop;
-            } else continue :loop;
+            } else if (!self.is_string()) continue :loop;
 
             switch (b) {
-                '(' => {
+                '(', ')' => if (self.mem.items.len > 0 and b == '(' and !self.is_keyword()) {
                     if (self.thing_type) |_| {} else {
                         self.thing_type = .LOCAL;
                     }
@@ -276,6 +305,11 @@ pub const Tokenizer = struct {
                         try stderr.print("failed to get args\n", .{});
                         std.process.exit(1);
                     }
+                } else {
+                    if (b == '(') self.paren_depth += 1;
+                    if (b == ')') self.paren_depth -= 1; // TODO: handle integer "overflow" (under flow)
+                    const new = try self.new_symbol_token(@constCast(&[_]u8{b}));
+                    try self.res.append(self.alloc, new);
                 },
                 ';' => {
                     defer self.is_start_of_thing = true;
@@ -326,6 +360,10 @@ pub const Tokenizer = struct {
     fn peek(self:*Tokenizer) u8 {
         if (self.pos.?+1 >= self.input.len) return 0;
         return self.input[self.pos.?+1];
+    }
+    fn previous(self:*Tokenizer) u8 {
+        if (self.pos.? < 1) return 0;
+        return self.input[self.pos.?-1];
     }
 
     fn is_string(self:*Tokenizer) bool {
