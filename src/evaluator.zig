@@ -45,12 +45,12 @@ pub const conditional = struct {
         const left_hand = in[0];
         const thing = in[1];
         const right_hand = in[2];
-        return switch (thing.symbol_type.?) {
-            .@"<" => left_hand.parsed_num.? < right_hand.parsed_num.?,
-            .@">" => left_hand.parsed_num.? > right_hand.parsed_num.?,
-            .@"==" => left_hand.parsed_num.? == right_hand.parsed_num.?,
-            .@">=" => left_hand.parsed_num.? >= right_hand.parsed_num.?,
-            .@"<=" => left_hand.parsed_num.? <= right_hand.parsed_num.?,
+        return switch (thing.type_info.symbol.?) {
+            .@"<" => left_hand.value.num.? < right_hand.value.num.?,
+            .@">" => left_hand.value.num.? > right_hand.value.num.?,
+            .@"==" => left_hand.value.num.? == right_hand.value.num.?,
+            .@">=" => left_hand.value.num.? >= right_hand.value.num.?,
+            .@"<=" => left_hand.value.num.? <= right_hand.value.num.?,
             else => @panic("invalid conditional symbol"),
         };
     }
@@ -61,7 +61,11 @@ pub const conditional = struct {
         var final:Token = .{
             .raw = @constCast(""),
             .type = .VALUE,
-            .value_type = .BOOL,
+
+            .type_info = .{
+                .value = .BOOL,
+            },
+
             .line_number = 0,
             .line_pos = 0,
         };
@@ -78,7 +82,7 @@ pub const conditional = struct {
                 .VALUE, .SYMBOL => try mem.append(alloc, token),
                 .KEYWORD => {
                     if (mem.items.len > 0) @panic("unexpected keyword in conditional.do()");
-                    last_keyword = token.keyword_type.?;
+                    last_keyword = token.type_info.keyword.?;
                 },
                 else => std.debug.panic(
                     "TODO: handle {s} in conditional",
@@ -94,11 +98,11 @@ pub const conditional = struct {
                 const new = eval(.{ mem.items[0], mem.items[1], mem.items[2] });
 
                 if (last_keyword) |word| {
-                    const one, const two = .{ final.bool_value.?, new };
+                    const one, const two = .{ final.value.bool.?, new };
                     switch (word) {
-                        .@"and" => final.bool_value = one and two,
-                        .@"or" => final.bool_value = one or two,
-                        .@"xor" => final.bool_value = (
+                        .@"and" => final.value.bool = one and two,
+                        .@"or" => final.value.bool = one or two,
+                        .@"xor" => final.value.bool = (
                             (!one and two) or (one and !two)
                         ),
                         else => std.debug.panic(
@@ -107,7 +111,7 @@ pub const conditional = struct {
                         ),
                     }
                 } else
-                    final.bool_value = new;
+                    final.value.bool = new;
             } 
         }
         return final;

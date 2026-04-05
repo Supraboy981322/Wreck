@@ -101,7 +101,7 @@ pub const Exec = struct {
 
         while (block.next()) |token| {
             switch (token.type) {
-                .FN => switch (token.thing_type.?) {
+                .FN => switch (token.type_info.thing.?) {
                     .SHELL_CMD => {
                         const argv = try block.get_args();
                         defer {
@@ -112,11 +112,11 @@ pub const Exec = struct {
                     },
                     else => std.debug.panic(
                         "TODO: FnType.{s}",
-                        .{ @tagName(token.thing_type.?) }
+                        .{ @tagName(token.type_info.thing.?) }
                     )
                 },
                 .SYMBOL => {
-                    switch (token.symbol_type.?) {
+                    switch (token.type_info.symbol.?) {
                         .@"{" => {
                             const code = try block.collect_depth(.@"{", .@"}");
                             try self.do_block(code);
@@ -125,15 +125,15 @@ pub const Exec = struct {
                     }
                 },
                 .KEYWORD => {
-                    switch (token.keyword_type.?) {
+                    switch (token.type_info.keyword.?) {
                         .@"?", .@"if" => {
                             //skip .@"("
                             _ = block.next();
                             self.conditional_res = (try conditional.do(
                                 self.alloc,
                                 try block.collect(.@")")
-                            )).bool_value;
-                            defer self.conditional_res = false;
+                            )).value.bool;
+                            defer self.conditional_res = null;
 
                             const if_true = b: {
                                 if (block.next_is_symbol(.@"{")) {
@@ -164,11 +164,12 @@ pub const Exec = struct {
                         },
                         else => std.debug.panic(
                             "TODO (keyword): {s}\n",
-                            .{@tagName(token.keyword_type.?)}
+                            .{@tagName(token.type_info.keyword.?)}
                         ),
                     }
                 },
                 .IDENT => {
+                    _ = block.next();
                 },
                 else => {
                     try if (block.back()) |*t| @constCast(t).print();
@@ -196,18 +197,21 @@ pub const Exec = struct {
         }
         try argv.append(self.alloc, try self.alloc.dupe(u8, cmd.raw));
         for (args) |*a| {
-            switch (a.value_type.?) {
+            if (a.type == .VALUE) {
+                switch (a.type_info.value.?) {
 
-                .FLAG => {
-                    try argv.append(self.alloc, try a.expand_flag(self.alloc));
-                },
-                .TOKEN_PTR => {
-                    const value = a.token_ptr.?.*.string_value.?;
-                    try argv.append(self.alloc, try self.alloc.dupe(u8, value));
-                },
+                    .FLAG => {
+                        try argv.append(self.alloc, try a.expand_flag(self.alloc));
+                    },
 
-                else => try argv.append(self.alloc, try self.alloc.dupe(u8, a.raw)),
-            }
+                    else => {
+                        try argv.append(self.alloc, try self.alloc.dupe(u8, a.raw));
+                    },
+                }
+            } else if (a.type == .IDENT) {
+                try argv.append(self.alloc, try self.alloc.dupe(u8, a.value.ptr.?.*.value.string.?));
+            } else
+                std.debug.panic("TODO string_args(): {s}", .{@tagName(a.type)});
         }
         return try argv.toOwnedSlice(self.alloc);
     }
@@ -290,7 +294,7 @@ pub const Block = struct {
     fn next_is_keyword(self:*Block, thing:Token.Keyword) bool {
         if (self.peek()) |token| {
             if (token.type != .KEYWORD) return false;
-            return token.keyword_type.? == thing;
+            return token.type_info.keyword.? == thing;
         }
         return false;
     }

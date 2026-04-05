@@ -27,20 +27,24 @@ pub const Tokenized = struct {
 
 pub const Token = struct {
     raw: []u8,
-    type: @This().Type,
-    value_type: ?@This().ValueType = null,
-    thing_type:?@This().ThingType = null,
-    symbol_type:?@This().Symbol = null,
-    keyword_type:?@This().Keyword = null,
-    parsed_num:?usize = null, // TODO: other number types
-    bool_value:?bool = null,
-    ident_type:?@This().IdentType = null,
-    string_value:?[]u8 = null,
-
-    token_ptr:?*Token = null,
-
+    type: Token.Type,
     line_number:usize,
     line_pos:usize,
+
+    type_info:struct {
+        value:?Token.ValueType = null,
+        thing:?Token.ThingType = null,
+        symbol:?Token.Symbol = null,
+        keyword:?Token.Keyword = null,
+        ident:?Token.IdentType = null,
+    } = .{},
+
+    value:struct {
+        num:?usize = null,
+        bool:?bool = null,
+        string:?[]u8 = null,
+        ptr:?*Token = null,
+    } = .{},
 
     pub const Type = enum {
         INVALID,
@@ -97,6 +101,70 @@ pub const Token = struct {
         IsNotFlag,
     };
 
+    pub fn is_value_type(self:*Token, value_type:@This().ValueType) bool {
+        if (self.type != .VALUE) return false;
+        return self.type_info.value.? == value_type;
+    }
+
+    pub fn is_symbol(self:*Token, check:Token.Symbol) bool {
+        if (self.type != .SYMBOL) return false;
+        return self.type_info.symbol.? == check;
+    }
+
+    pub fn is_keyword(self:*Token, check:Token.Keyword) bool {
+        if (self.type != .KEYWORD) return false;
+        return self.type_info.keyword.? == check;
+    }
+
+    pub fn is_oneof_keywords(self:*Token, check:[]Token.Keyword) bool {
+        if (self.type != .KEYWORD) return false;
+        for (check) |thing|
+            if (self.is_keyword(thing)) return true;
+        return false;
+    }
+
+    pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
+        return .{
+            .raw = try alloc.dupe(u8, self.raw),
+            .type = self.type,
+
+            .line_number = self.line_number,
+            .line_pos = self.line_pos,
+
+            .type_info =  .{
+                .value = self.type_info.value,
+                .thing = self.type_info.thing,
+                .symbol = self.type_info.symbol,
+                .keyword = self.type_info.keyword,
+                .ident = self.type_info.ident,
+            },
+
+            .value = .{
+                .num = self.value.num,
+                .bool = self.value.bool,
+                .string = self.value.string,
+                .ptr = self.value.ptr,
+            },
+        };
+    }
+
+    pub fn expand_flag(self:*Token, alloc:std.mem.Allocator) ![]u8 {
+        if (!self.is_value_type(.FLAG)) return Token.Errors.IsNotFlag;
+        
+        var res = try std.ArrayList(u8).initCapacity(alloc, 0);
+        defer _ = res.deinit(alloc);
+
+        try res.append(alloc, '-');
+        if (self.raw.len > 1) try res.append(alloc, '-');
+        try res.appendSlice(alloc, self.raw);
+
+        return try res.toOwnedSlice(alloc);
+    }
+
+    pub fn free(self:*Token, alloc:std.mem.Allocator) void {
+        alloc.free(self.raw);
+    }
+
     pub fn print(self:*Token) !void {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer _ = arena.deinit();
@@ -121,112 +189,54 @@ pub const Token = struct {
 
         //all this comptime and I can't even put predefined, similar enum types in an array?
         //  pretty stupid if you ask me
-
-        if (self.value_type) |thing| try fmted.print(
+        
+        if (self.type_info.value) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 3, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
-        if (self.thing_type) |thing| try fmted.print(
+        if (self.type_info.thing) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 4, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
-        if (self.symbol_type) |thing| try fmted.print(
+        if (self.type_info.symbol) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
-        if (self.keyword_type) |thing| try fmted.print(
+        if (self.type_info.keyword) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 6, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
-        if (self.keyword_type) |thing| try fmted.print(
+        if (self.type_info.ident) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
         );
-        if (self.parsed_num) |thing| try fmted.print(
+
+        if (self.value.num) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{d}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), thing, }
         );
-        if (self.bool_value) |thing| try fmted.print(
+        if (self.value.bool) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), thing, }
         );
-        if (self.ident_type) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
-        );
-        if (self.string_value) |thing| try fmted.print(
+        if (self.value.string) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), thing, }
         );
-        if (self.token_ptr) |thing| try fmted.print(
+        if (self.value.ptr) |thing| try fmted.print(
             alloc,
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), std.mem.asBytes(thing), }
         );
 
         try globs.stdout.print("{s}", .{fmted.items}); 
-    }
-
-    pub fn is_value_type(self:*Token, value_type:@This().ValueType) bool {
-        if (self.type != .VALUE) return false;
-        return self.value_type.? == value_type;
-    }
-
-    pub fn is_symbol(self:*Token, check:@This().Symbol) bool {
-        if (self.type != .SYMBOL) return false;
-        return self.symbol_type.? == check;
-    }
-
-    pub fn is_keyword(self:*Token, check:@This().Keyword) bool {
-        if (self.type != .KEYWORD) return false;
-        return self.keyword_type.? == check;
-    }
-
-    pub fn is_oneof_keywords(self:*Token, check:[]@This().Keyword) bool {
-        if (self.type != .KEYWORD) return false;
-        for (check) |thing|
-            if (self.is_keyword(thing)) return true;
-        return false;
-    }
-
-    pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
-        return .{
-            .raw = try alloc.dupe(u8, self.raw),
-            .type = self.type,
-            .value_type = self.value_type,
-            .thing_type = self.thing_type,
-            .symbol_type = self.symbol_type,
-            .keyword_type = self.keyword_type,
-            .parsed_num = self.parsed_num,
-            .bool_value = self.bool_value,
-            .line_number = self.line_number,
-            .line_pos = self.line_pos,
-        };
-    }
-
-    pub fn expand_flag(self:*Token, alloc:std.mem.Allocator) ![]u8 {
-        if (!self.is_value_type(.FLAG)) return @This().Errors.IsNotFlag;
-        
-        var res = try std.ArrayList(u8).initCapacity(alloc, 0);
-        defer _ = res.deinit(alloc);
-
-        try res.append(alloc, '-');
-        if (self.raw.len > 1) try res.append(alloc, '-');
-        try res.appendSlice(alloc, self.raw);
-
-        return try res.toOwnedSlice(alloc);
-    }
-
-    pub fn free(self:*Token, alloc:std.mem.Allocator) void {
-        alloc.free(self.raw);
     }
 };

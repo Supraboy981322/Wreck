@@ -100,10 +100,14 @@ pub const Tokenizer = struct {
         return .{
             .raw  = raw,
             .type = expecting,
-            .value_type = parsing,
-            .thing_type = self.thing_type,
+
             .line_number = self.line_num,
             .line_pos = self.line_pos,
+
+            .type_info = .{
+                .value = parsing,
+                .thing = self.thing_type,
+            },
         };
     }
 
@@ -119,9 +123,13 @@ pub const Tokenizer = struct {
         return .{
             .raw = try self.alloc.dupe(u8, thing),
             .type = .SYMBOL,
-            .symbol_type = symbol,
+
             .line_number = self.line_num,
             .line_pos = self.line_pos,
+
+            .type_info = .{
+                .symbol = symbol,
+            },
         };
     }
     
@@ -138,9 +146,13 @@ pub const Tokenizer = struct {
         return .{
             .raw = try self.alloc.dupe(u8, thing),
             .type = .KEYWORD,
-            .keyword_type = keyword,
+
             .line_number = self.line_num,
             .line_pos = self.line_pos,
+
+            .type_info = .{
+                .keyword = keyword,
+            },
         };
     }
 
@@ -209,10 +221,17 @@ pub const Tokenizer = struct {
         return .{
             .raw = try self.alloc.dupe(u8, literal),
             .type = .VALUE,
-            .value_type = .NUM,
-            .parsed_num = parsed,
+
             .line_number = self.line_num,
             .line_pos = self.line_pos,
+
+            .type_info = .{
+                .value = .NUM,
+            },
+            
+            .value = .{
+                .num = parsed,
+            },
         };
     }
 
@@ -232,9 +251,13 @@ pub const Tokenizer = struct {
             const new:Token = .{
                 .raw = try self.alloc.dupe(u8, self.mem.items),
                 .type = .IDENT,
-                .ident_type = matched,
+
                 .line_number = self.line_num,
                 .line_pos = self.line_pos,
+                
+                .type_info = .{
+                    .ident = matched,
+                },
             };
             self.expected_type = switch (matched) {
                 .@"fn" => .INVALID,
@@ -253,9 +276,6 @@ pub const Tokenizer = struct {
             return identifier;
         } else for (self.known_idents.items) |*ident| {
             if (std.mem.eql(u8, ident.raw, self.mem.items)) {
-                defer {
-                    self.mem.clearAndFree(self.alloc);
-                }
                 return try @constCast(ident).own(self.alloc);
             }
         }
@@ -292,7 +312,7 @@ pub const Tokenizer = struct {
         else false;
         std.debug.print("|{s}| is_builtin == {}\n", .{value, is_builtin});
 
-        ident.value_type = if (is_num)
+        ident.type_info.value = if (is_num)
             .NUM
         else if (is_str)
             .STRING
@@ -304,17 +324,18 @@ pub const Tokenizer = struct {
             return Error.INVALID;
 
         if (is_num)
-            ident.parsed_num = std.fmt.parseInt(usize, value, 10) catch return Error.NAN;
+            ident.value.num = std.fmt.parseInt(usize, value, 10) catch return Error.NAN;
         if (is_str)
-            ident.string_value = value[1..value.len-1];
+            ident.value.string = value[1..value.len-1];
         if (is_bool) {
             const sentenial = try self.alloc.dupeZ(u8, value);
             defer self.alloc.free(sentenial);
-            ident.bool_value = std.zon.parse.fromSlice(bool, self.alloc, sentenial, null, .{}) catch unreachable;
+            ident.value.bool = std.zon.parse.fromSlice(bool, self.alloc, sentenial, null, .{}) catch unreachable;
         }
 
         var tracked = try ident.own(self.alloc);
-        tracked.token_ptr = ident;
+        tracked.value.ptr = ident;
+        tracked.value.string = if (is_str) try self.alloc.dupe(u8, value[1..value.len-1]) else null;
 
         try self.known_idents.append(self.alloc, tracked);
     }
@@ -606,13 +627,13 @@ pub const Tokenizer = struct {
     pub fn context_pass(self:*Tokenizer) !void {
         for (self.res.items) |*token| switch (token.type) {
             .FN => {
-                token.thing_type = switch (token.raw[0]) {
+                token.type_info.thing = switch (token.raw[0]) {
                     '#' => .BUILTIN,
                     '$' => .SHELL_CMD,
                     '@' => .EXTERNAL,
                     else => .LOCAL,
                 };
-                if (token.thing_type != .LOCAL) {
+                if (token.type_info.thing != .LOCAL) {
                     token.raw = token.raw[1..];
                 }
             },
