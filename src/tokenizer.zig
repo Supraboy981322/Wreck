@@ -475,7 +475,11 @@ pub const Tokenizer = struct {
             try stderr.print("error attempting to parse args: (mem not empty)\n", .{});
             std.process.exit(1);
         }
-        loop: while (self.next() != null and ((self.cur != ')' and self.cur != ';') or self.is_string())) {
+        loop: while (
+            self.next() != null and (
+                (self.cur != ')' and self.cur != ';') or self.is_string()
+            )
+        ) {
             if (std.ascii.isWhitespace(self.cur)) if (self.parsing_as) |as| {
                 if (as == .STRING)
                     try self.mem.append(self.alloc, self.cur)
