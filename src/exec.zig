@@ -49,8 +49,18 @@ pub const Exec = struct {
         //tokenizer.free(self.alloc, self.in);
     }
     
-    fn unexpected(self:*Exec, token:Token) !void {
-        try stderr.print("\n\n\x1b[3;31munexpected token (exec):\x1b[0m\n", .{});
+    fn unexpected(self:*Exec, token:Token, comptime additional:?[]const u8) !void {
+        try stderr.print(
+            "\x1b[3;31m" ++
+            \\
+            \\unexpected token (exec)
+            \\
+                ++ "\n\x1b[0m"
+                ++ (if (additional) |add|
+                        add ++ "\n"
+                    else ""),
+            .{}
+        );
         try @constCast(&token).print();
         if (self.source) |src| {
             var buf = try std.ArrayList(u8).initCapacity(self.alloc, 0);
@@ -134,7 +144,7 @@ pub const Exec = struct {
                             const code = try block.collect_depth(.@"{", .@"}");
                             try self.do_block(code, depth + 1);
                         },
-                        else => try self.unexpected(token),
+                        else => try self.unexpected(token, null),
                     }
                 },
                 .KEYWORD => {
@@ -185,9 +195,17 @@ pub const Exec = struct {
                     switch (token.type_info.ident.?) {
                         .@"set", .@"let" => if (block.next_is_symbol(.@";")) {
                             _ = block.next();
-                            try block.known_idents.put(token.raw, token);
+                            if (block.can_change(token))
+                                try block.known_idents.put(token.raw, token)
+                            else {
+                                try self.unexpected(
+                                    token,
+                                    \\value defined with 'set,' which isn't a variable,
+                                     \\  it can't be changed. (HINT: use 'let' to change it)
+                                );
+                            }
                         } else
-                            try self.unexpected(token),
+                            try self.unexpected(token, null),
                         else => std.debug.panic(
                             "TODO: exec switch block.next().?.type == "
                                 ++ ".IDENT for IdentType of {s}",
@@ -235,7 +253,7 @@ pub const Exec = struct {
             } else if (a.type == .IDENT) {
                 const og = block.known_idents.get(a.raw) orelse {
                     std.debug.print("Exec.string_args(...)\n", .{});
-                    try self.unexpected(a.*);
+                    try self.unexpected(a.*, null);
                     unreachable;
                 };
                 try argv.append(self.alloc, og.value.string.?);
