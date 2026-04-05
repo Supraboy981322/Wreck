@@ -50,7 +50,7 @@ pub const Exec = struct {
     }
     
     fn unexpected(self:*Exec, token:Token) !void {
-        try stderr.print("\n\n\x1b[3;31munexpected token:\x1b[0m\n", .{});
+        try stderr.print("\n\n\x1b[3;31munexpected token (exec):\x1b[0m\n", .{});
         try @constCast(&token).print();
         if (self.source) |src| {
             var buf = try std.ArrayList(u8).initCapacity(self.alloc, 0);
@@ -85,10 +85,16 @@ pub const Exec = struct {
 
             try buf.print(
                 self.alloc,
-                "\n\x1b[38;2;100;100;150m{s}\x1b[31m{s}\x1b[38;2;100;100;150m{s}\x1b[0m\n",
-                .{before_the_thing, the_thing, after_the_thing}
+                "\n\t{d} |  \x1b[38;2;100;100;150m{s}\x1b[31m{s}"
+                        ++ "\x1b[38;2;100;100;150m{s}\x1b[0m\n\t",
+                .{token.line_number, before_the_thing, the_thing, after_the_thing}
             );
-            for (before_the_thing) |_|
+
+            const before_len = std.fmt.count(
+                "{d} |  {s}", .{token.line_number, before_the_thing}
+            );
+
+            for (0..before_len) |_|
                 try buf.print(self.alloc, " ", .{});
 
             for (the_thing) |_|
