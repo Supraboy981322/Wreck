@@ -186,8 +186,6 @@ pub const Exec = struct {
                             .{ @tagName(token.type_info.ident.?) }
                         ),
                     }
-                    try @constCast(&token).print();
-                    try @constCast(&block.next().?).print();
                 },
                 else => {
                     try if (block.back()) |*t| @constCast(t).print();

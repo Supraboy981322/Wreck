@@ -387,13 +387,7 @@ pub const Tokenizer = struct {
                         try self.unexpected(null);
                     }
                 } else {
-                    if (self.mem.items.len > 0) {
-                        const tokenized:Token = self.new_who_knows_what() catch {
-                            try self.unexpected(null);
-                            unreachable;
-                        };
-                        try self.res.append(self.alloc, tokenized);
-                    }
+                    try self.add_if_mem();
 
                     if (b == '(') self.paren_depth += 1;
                     // TODO: handle integer "overflow" (under flow)
