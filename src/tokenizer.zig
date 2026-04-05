@@ -76,6 +76,7 @@ pub const Tokenizer = struct {
     fn add_if_mem(self:*Tokenizer) !void {
         if (self.mem.items.len > 0) {
             const tokenized:Token = self.new_who_knows_what() catch {
+                std.debug.print("Tokenizer.add_if_mem()\n", .{});
                 try self.unexpected(null);
                 unreachable;
             };
@@ -528,6 +529,9 @@ pub const Tokenizer = struct {
                 // TODO: lists
                 '[' => if (!self.is_string()) {
                     if (self.parsing_as) |_| {
+                        std.debug.print(
+                            "Tokenizer.get_args() switch (self.cur) '[' => self.parsing_as", .{}
+                        );
                         try self.unexpected(@constCast("["));
                     } else if (self.peek() == '[')
                         try self.consume_flags()

@@ -230,8 +230,11 @@ pub const Exec = struct {
                     unreachable;
                 };
                 try argv.append(self.alloc, og.value.string.?);
-            } else
-                std.debug.panic("TODO string_args(): {s}", .{@tagName(a.type)});
+            } else {
+                std.debug.print("TODO string_args(): {s}\n", .{@tagName(a.type)});
+                try @constCast(a).print();
+                unreachable;
+            }
         }
         return try argv.toOwnedSlice(self.alloc);
     }
