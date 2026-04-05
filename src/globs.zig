@@ -10,6 +10,10 @@ pub const dupe_keywords = struct {
     pub var @"if" = [_]Keyword{ .@"?", .@"if" };
 };
 
+pub const keyword_sets_following_type = struct {
+    pub var ident = [_]Keyword{ .@"fn", .@"set", .@"let" };
+};
+
 //when the stupid scoped allocators have a bug where a seg-fault only occurs if value isn't used in IO operation
 pub fn discard(thing:anytype) void {
     var wr = &@constCast(&std.Io.Writer.Discarding.init(&.{})).writer;

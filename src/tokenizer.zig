@@ -139,6 +139,13 @@ pub const Token = struct {
         return self.keyword_type.? == check;
     }
 
+    pub fn is_oneof_keywords(self:*Token, check:[]@This().Keyword) bool {
+        if (self.type != .KEYWORD) return false;
+        for (check) |thing|
+            if (self.is_keyword(thing)) return true;
+        return false;
+    }
+
     pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
         return .{
             .raw = try alloc.dupe(u8, self.raw),
