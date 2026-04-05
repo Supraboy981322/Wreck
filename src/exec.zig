@@ -183,9 +183,11 @@ pub const Exec = struct {
                 },
                 .IDENT => {
                     switch (token.type_info.ident.?) {
-                        .@"set", .@"let" => {
+                        .@"set", .@"let" => if (block.next_is_symbol(.@";")) {
+                            _ = block.next();
                             try block.known_idents.put(token.raw, token);
-                        },
+                        } else
+                            try self.unexpected(token),
                         else => std.debug.panic(
                             "TODO: exec switch block.next().?.type == "
                                 ++ ".IDENT for IdentType of {s}",
