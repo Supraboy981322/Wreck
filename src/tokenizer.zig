@@ -507,7 +507,7 @@ pub const Tokenizer = struct {
                 '"', '\'' => {
                     if (self.parsing_as) |t| {
                         if (self.is_string() and self.string_type == self.cur) {
-                            if (self.peek() == ')' or self.peek() == ' ') {
+                            if (self.end_of_thing(null)) {
                                 self.parsing_as = null;
                                 self.string_type = 0;
                                 const new = try self.new_token(.VALUE, t);
@@ -543,10 +543,13 @@ pub const Tokenizer = struct {
                     try self.res.append(self.alloc, new);
                 } else {
                     try self.mem.append(self.alloc, self.cur);
-                    if ((self.peek() == ')' or self.peek() == ' ') and !self.is_string() and self.mem.items.len > 0) {
+                    if (self.end_of_thing(false) and self.mem.items.len > 0) {
                         self.parsing_as = null;
                         self.string_type = 0;
                         const new = self.new_who_knows_what() catch {
+                            std.debug.print(
+                                "Tokenizer.get_args() switch self.cur else => else {{", .{}
+                            );
                             try self.unexpected(null);
                             unreachable;
                         };
@@ -557,6 +560,13 @@ pub const Tokenizer = struct {
         }
         try self.add_if_mem();
         return self.peek() != 0 and (self.cur != ')' or self.cur != ';');
+    }
+    
+    fn end_of_thing(self:*Tokenizer, can_be_string:?bool) bool {
+        var res = self.peek() == ')' or self.peek() == ' ' or self.peek() == ';';
+        if (can_be_string) |check|
+            res = res and (self.is_string() == check);
+        return res;
     }
 
     pub fn print(self:*Tokenizer, tokens:[]Token) !void {
