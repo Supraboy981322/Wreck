@@ -38,14 +38,14 @@ pub fn main() !void {
 
     var tokenizer = try Tokenizer.init(code, allocator);//alloc); // TODO: cleanup allocation
     defer tokenizer.deinit();
-    const tokens = try tokenizer.do();
-    defer tokenizer.free(tokens);
+    const state = try tokenizer.do();
+    defer tokenizer.free(state.tokens);
 
     try stderr.print("\ntokenized:\n", .{});
-    try tokenizer.print(tokens);
+    try tokenizer.print(state.tokens);
 
     try stderr.print("\noutput:\n", .{});
-    var exec = try Exec.init(tokens, code, allocator);//alloc); // TODO: cleanup allocation
+    var exec = try Exec.init(state, code, allocator);//alloc); // TODO: cleanup allocation
     defer exec.deinit();
     exec.do() catch |e| {
         try stderr.print("{t}\n", .{e});

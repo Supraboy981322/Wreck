@@ -2,202 +2,19 @@ const std = @import("std");
 const globs = @import("globs.zig");
 const hlp = @import("helpers.zig");
 const parser = @import("parser.zig");
+const types = @import("types.zig");
 
 const stdout = globs.stdout;
 const stderr = globs.stderr;
-
-pub const Token = struct {
-    raw: []u8,
-    type: @This().Type,
-    value_type: ?@This().ValueType = null,
-    thing_type:?@This().ThingType = null,
-    symbol_type:?@This().Symbol = null,
-    keyword_type:?@This().Keyword = null,
-    parsed_num:?usize = null, // TODO: other number types
-    bool_value:?bool = null,
-    ident_type:?@This().IdentType = null,
-    string_value:?[]u8 = null,
-
-    token_ptr:?*Token = null,
-
-    line_number:usize,
-    line_pos:usize,
-
-    pub const Type = enum {
-        INVALID,
-        FN,
-        VALUE,
-        SYMBOL,
-        KEYWORD,
-        IDENT,
-    };
-
-    pub const ValueType = enum {
-        UNKNOWN,
-        VOID,
-        NUM,
-        FLAG,
-        STRING,
-        COMMENT,
-        BOOL,
-        BUILTIN,
-        TOKEN_PTR,
-    };
-
-    pub const IdentType = enum {
-        @"fn",
-        @"let",
-        @"set",
-    };
-
-    pub const ThingType = enum {
-        SHELL_CMD,
-        BUILTIN,
-        LOCAL,
-        EXTERNAL,
-    };
-
-    pub const Symbol = enum {
-        @"{",   @"}",
-        @"(",   @")",
-        @"<",   @">",
-        @"=",   @"==",
-        @">=",  @"<=",
-        @";",
-    };
-    
-    pub const Keyword = enum {
-        @"?",   @"if",
-        @"?!",  @"else",
-        @"and", @"or", @"xor",
-        @"fn",
-        @"let", @"set",
-    };
-
-    pub const Errors = error {
-        IsNotFlag,
-    };
-
-    pub fn print(self:*Token) !void {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer _ = arena.deinit();
-        const alloc = arena.allocator();
-
-        var fmted = try std.ArrayList(u8).initCapacity(alloc, 0);
-        defer _ = fmted.deinit(alloc);
-
-        try fmted.print(
-            alloc,
-            "\x1b[0;3{d}mraw\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\n\t"
-                ++ "\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\n",
-            .{
-                1, try parser.unescape(arena.allocator(), self.raw),
-                2, @typeName(@TypeOf(self.type)), @tagName(self.type)
-            }
-        );
-
-        //all this comptime and I can't even put predefined, similar enum types in an array?
-        //  pretty stupid if you ask me
-
-        if (self.value_type) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 3, @typeName(@TypeOf(thing)), @tagName(thing), }
-        );
-        if (self.thing_type) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 4, @typeName(@TypeOf(thing)), @tagName(thing), }
-        );
-        if (self.symbol_type) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 5, @typeName(@TypeOf(thing)), @tagName(thing), }
-        );
-        if (self.keyword_type) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 6, @typeName(@TypeOf(thing)), @tagName(thing), }
-        );
-        if (self.keyword_type) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 7, @typeName(@TypeOf(thing)), @tagName(thing), }
-        );
-        if (self.parsed_num) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{d}\x1b[1;37m}}\x1b[0m\n",
-            .{ 7, @typeName(@TypeOf(thing)), thing, }
-        );
-        if (self.bool_value) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{}\x1b[1;37m}}\x1b[0m\n",
-            .{ 7, @typeName(@TypeOf(thing)), thing, }
-        );
-
-        try stdout.print("{s}", .{fmted.items}); 
-    }
-
-    pub fn is_value_type(self:*Token, value_type:@This().ValueType) bool {
-        if (self.type != .VALUE) return false;
-        return self.value_type.? == value_type;
-    }
-
-    pub fn is_symbol(self:*Token, check:@This().Symbol) bool {
-        if (self.type != .SYMBOL) return false;
-        return self.symbol_type.? == check;
-    }
-
-    pub fn is_keyword(self:*Token, check:@This().Keyword) bool {
-        if (self.type != .KEYWORD) return false;
-        return self.keyword_type.? == check;
-    }
-
-    pub fn is_oneof_keywords(self:*Token, check:[]@This().Keyword) bool {
-        if (self.type != .KEYWORD) return false;
-        for (check) |thing|
-            if (self.is_keyword(thing)) return true;
-        return false;
-    }
-
-    pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
-        return .{
-            .raw = try alloc.dupe(u8, self.raw),
-            .type = self.type,
-            .value_type = self.value_type,
-            .thing_type = self.thing_type,
-            .symbol_type = self.symbol_type,
-            .keyword_type = self.keyword_type,
-            .parsed_num = self.parsed_num,
-            .bool_value = self.bool_value,
-            .line_number = self.line_number,
-            .line_pos = self.line_pos,
-        };
-    }
-
-    pub fn expand_flag(self:*Token, alloc:std.mem.Allocator) ![]u8 {
-        if (!self.is_value_type(.FLAG)) return @This().Errors.IsNotFlag;
-        
-        var res = try std.ArrayList(u8).initCapacity(alloc, 0);
-        defer _ = res.deinit(alloc);
-
-        try res.append(alloc, '-');
-        if (self.raw.len > 1) try res.append(alloc, '-');
-        try res.appendSlice(alloc, self.raw);
-
-        return try res.toOwnedSlice(alloc);
-    }
-
-    pub fn free(self:*Token, alloc:std.mem.Allocator) void {
-        alloc.free(self.raw);
-    }
-};
 
 // TODO: no printing, just return error
 pub const Error = error {
     NAN,
     INVALID,
 };
+
+pub const Tokenized = types.Tokenized;
+pub const Token = types.Token;
 
 pub const Tokenizer = struct {
     input:[]const u8,
@@ -434,11 +251,13 @@ pub const Tokenizer = struct {
             self.expected_type = .INVALID;
 
             return identifier;
-        } else {
-            for (self.known_idents.items) |*ident|
-                if (std.mem.eql(u8, ident.raw, self.mem.items))
-                    try self.res.append(self.alloc, try @constCast(ident).own(self.alloc))
-                else std.debug.panic("{s} != {s}\n", .{ident.raw, self.mem.items});
+        } else for (self.known_idents.items) |*ident| {
+            if (std.mem.eql(u8, ident.raw, self.mem.items)) {
+                defer {
+                    self.mem.clearAndFree(self.alloc);
+                }
+                return try @constCast(ident).own(self.alloc);
+            }
         }
 
         ok = false;
@@ -500,7 +319,7 @@ pub const Tokenizer = struct {
         try self.known_idents.append(self.alloc, tracked);
     }
 
-    pub fn do(self:*Tokenizer) ![]Token {
+    pub fn do(self:*Tokenizer) !Tokenized {
         defer self.known_idents.clearAndFree(self.alloc);
 
         loop: while (self.next()) |b| {
@@ -531,8 +350,8 @@ pub const Tokenizer = struct {
                     self.thing_type = null;
                     try self.res.append(self.alloc, func);
                     if (!try self.get_args()) {
-                        try stderr.print("failed to get args\n", .{});
-                        std.process.exit(1);
+                        try stderr.print("\x1b[5;3;1;33mfailed to get args\x1b[0m\n", .{});
+                        try self.unexpected(null);
                     }
                 } else {
                     if (self.mem.items.len > 0) {
@@ -561,7 +380,7 @@ pub const Tokenizer = struct {
         }
         try self.add_if_mem();
         try self.context_pass();
-        return self.res.toOwnedSlice(self.alloc);
+        return try self.finalize();
     }
 
     fn can_be_start_of_thing(self:*Tokenizer) bool {
@@ -692,11 +511,20 @@ pub const Tokenizer = struct {
                     try self.res.append(self.alloc, new);
                 } else {
                     try self.mem.append(self.alloc, self.cur);
+                    if ((self.peek() == ')' or self.peek() == ' ') and !self.is_string() and self.mem.items.len > 0) {
+                        self.parsing_as = null;
+                        self.string_type = 0;
+                        const new = self.new_who_knows_what() catch {
+                            try self.unexpected(null);
+                            unreachable;
+                        };
+                        try self.res.append(self.alloc, new);
+                    }
                 },
             }
         }
         try self.add_if_mem();
-        return self.peek() != 0 or (self.cur != ')' and self.cur != ';');
+        return self.peek() != 0 and (self.cur != ')' or self.cur != ';');
     }
 
     pub fn print(self:*Tokenizer, tokens:[]Token) !void {
@@ -790,6 +618,41 @@ pub const Tokenizer = struct {
             },
             else => {}
         };
+    }
+    
+    pub fn finalize(self:*Tokenizer) !Tokenized {
+        var finalized = Tokenized{
+            .arena = std.heap.ArenaAllocator.init(std.heap.page_allocator),
+            .alloc = undefined,
+            .tokens = undefined,
+            .base_state = .{
+                .idents = undefined,
+            },
+        };
+        //finalized.alloc = finalized.arena.allocator();
+        finalized.tokens = self.res.items;
+
+        //var final_tokens = try std.ArrayList(Token).initCapacity(finalized.alloc, 0);
+        //defer _ = final_tokens.deinit(finalized.alloc);
+
+        //var final_idents = try std.ArrayList(*Token).initCapacity(finalized.alloc, 0);
+        //defer _ = final_tokens.deinit(finalized.alloc);
+
+        //for (self.res.items) |token| {
+        //    switch (token.type) {
+        //        .IDENT => {
+        //            //State{
+        //            //    .idents = final_idents.items,
+        //            //}.find_ident(token.raw);
+        //            //for (final_idents.items) |ident| {
+        //            //    if (finalized
+        //            //}
+        //        },
+        //        else => {}
+        //    }
+        //}
+
+        return finalized;
     }
 };
 

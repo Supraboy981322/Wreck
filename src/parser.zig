@@ -1,4 +1,8 @@
 const std = @import("std");
+const globs = @import("globs.zig");
+
+const stdout = globs.stdout;
+const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Token = @import("tokenizer.zig").Token;
 
 pub const Error = error {

@@ -2,6 +2,7 @@ const std = @import("std");
 const globs = @import("globs.zig");
 const tokenizer = @import("tokenizer.zig");
 const evaluator = @import("evaluator.zig");
+const types = @import("types.zig");
 
 const dupes = globs.dupe_keywords;
 
@@ -11,13 +12,18 @@ const Token = tokenizer.Token;
 const Keyword = Token.Keyword;
 const conditional = evaluator.conditional;
 
+const State = types.State;
+const Tokenized = types.Tokenized;
+
 pub const Exec = struct {
     in:[]Token,
     source:?[]u8,
     alloc:std.mem.Allocator,
     conditional_res:?bool,
 
-    pub fn init(tokens: []Token, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
+    state:State,
+
+    pub fn init(tokens: Tokenized, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
         //var arena = std.heap.ArenaAllocator.init(owned_alloc);//std.heap.page_allocator);
         //const alloc = arena.allocator();
         var foo =  Exec{
@@ -25,8 +31,9 @@ pub const Exec = struct {
             .source = source,
             .alloc = owned_alloc,
             .conditional_res = null,
+            .state = tokens.base_state,
         };
-        foo.in = try tokenizer.dupe(foo.alloc, tokens);
+        foo.in = try tokenizer.dupe(foo.alloc, tokens.tokens);
         return foo;
     }
 
@@ -161,6 +168,8 @@ pub const Exec = struct {
                         ),
                     }
                 },
+                .IDENT => {
+                },
                 else => {
                     try if (block.back()) |*t| @constCast(t).print();
                     for (0..2) |_| if (block.next()) |*t| try @constCast(t).print();
@@ -187,10 +196,14 @@ pub const Exec = struct {
         }
         try argv.append(self.alloc, try self.alloc.dupe(u8, cmd.raw));
         for (args) |*a| {
-                switch (a.value_type.?) {
+            switch (a.value_type.?) {
 
                 .FLAG => {
                     try argv.append(self.alloc, try a.expand_flag(self.alloc));
+                },
+                .TOKEN_PTR => {
+                    const value = a.token_ptr.?.*.string_value.?;
+                    try argv.append(self.alloc, try self.alloc.dupe(u8, value));
                 },
 
                 else => try argv.append(self.alloc, try self.alloc.dupe(u8, a.raw)),
