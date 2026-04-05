@@ -21,6 +21,7 @@ pub const Exec = struct {
     alloc:std.mem.Allocator,
     conditional_res:?bool,
 
+    known_idents:std.StringHashMap(Token),
     state:State,
 
     pub fn init(tokens: Tokenized, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
@@ -32,13 +33,19 @@ pub const Exec = struct {
             .alloc = owned_alloc,
             .conditional_res = null,
             .state = tokens.base_state,
+            .known_idents = undefined,
         };
-        foo.in = try tokenizer.dupe(foo.alloc, tokens.tokens);
+        foo.in = tokens.tokens; //try tokenizer.dupe(foo.alloc, tokens.tokens);
+        foo.known_idents = std.StringHashMap(Token).init(foo.alloc);
         return foo;
     }
 
     pub fn deinit(self:*Exec) void {
-        _ = self;
+        while (@constCast(&self.known_idents.iterator()).next()) |ident| {
+            self.alloc.free(ident.key_ptr.*);
+            ident.value_ptr.free(self.alloc);
+        }
+        self.known_idents.deinit();
         //tokenizer.free(self.alloc, self.in);
     }
     
@@ -93,10 +100,10 @@ pub const Exec = struct {
         std.process.exit(1);
     }
 
-    pub fn do_block(self:*Exec, input:?[]Token) !void {
+    pub fn do_block(self:*Exec, input:?[]Token, depth:usize) !void {
 
         const tokens = if (input) |in| in else self.in;
-        var block = Block.init(tokens, self.alloc);
+        var block = try Block.init(tokens, depth, self.alloc, self.known_idents);
         defer block.deinit();
 
         while (block.next()) |token| {
@@ -119,7 +126,7 @@ pub const Exec = struct {
                     switch (token.type_info.symbol.?) {
                         .@"{" => {
                             const code = try block.collect_depth(.@"{", .@"}");
-                            try self.do_block(code);
+                            try self.do_block(code, depth + 1);
                         },
                         else => try self.unexpected(token),
                     }
@@ -158,9 +165,9 @@ pub const Exec = struct {
                             };
 
                             try if (self.conditional_res.?)
-                                self.do_block(if_true)
+                                self.do_block(if_true, depth + 1)
                             else if (if_false) |toks|
-                                self.do_block(toks);
+                                self.do_block(toks, depth + 1);
                         },
                         else => std.debug.panic(
                             "TODO (keyword): {s}\n",
@@ -181,7 +188,7 @@ pub const Exec = struct {
     }
 
     pub fn do(self:*Exec) !void {
-        try self.do_block(null);
+        try self.do_block(null, 0);
     }
 
     pub fn do_then_deinit(self:*Exec) !void {
@@ -209,7 +216,10 @@ pub const Exec = struct {
                     },
                 }
             } else if (a.type == .IDENT) {
-                try argv.append(self.alloc, try self.alloc.dupe(u8, a.value.ptr.?.*.value.string.?));
+                const og = try a.resolve_var();
+                const value = og.value.string orelse @panic("not a string (exec string_args())");
+                try stdout.print("DEBUG: {{{s}}}\n", .{value});
+                try argv.append(self.alloc, value);
             } else
                 std.debug.panic("TODO string_args(): {s}", .{@tagName(a.type)});
         }
@@ -255,16 +265,34 @@ pub const Block = struct {
     pos:?usize = null,
     cur:Token = undefined,
     alloc:std.mem.Allocator,
+    depth:usize,
 
-    pub fn init(code:[]Token, alloc:std.mem.Allocator) Block {
-        return .{
+    known_idents:std.StringHashMap(Token),
+
+    pub fn init(
+        code:[]Token,
+        parent_depth:usize,
+        alloc:std.mem.Allocator,
+        parent_idents:std.StringHashMap(Token),
+    ) !Block {
+        var block = Block{
             .code = code,
-            .alloc = alloc
+            .alloc = alloc,
+            .depth = parent_depth + 1,
+            .known_idents = undefined,
         };
+        block.known_idents = try parent_idents.cloneWithAllocator(block.alloc);
+        return block;
     }
 
     pub fn deinit(self:*Block) void {
-        for (self.code) |*token| @constCast(token).free(self.alloc);
+        for (self.code) |*token|
+            @constCast(token).free(self.alloc);
+        var itr = self.known_idents.iterator();
+        while (itr.next()) |ident| if (ident.value_ptr.*.depth == self.depth) {
+            ident.value_ptr.free(self.alloc);
+            self.alloc.free(ident.key_ptr.*);
+        };
     }
 
     pub fn next(self:*Block) ?Token {

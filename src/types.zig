@@ -28,6 +28,7 @@ pub const Tokenized = struct {
 pub const Token = struct {
     raw: []u8,
     type: Token.Type,
+    depth:usize = undefined,
     line_number:usize,
     line_pos:usize,
 
