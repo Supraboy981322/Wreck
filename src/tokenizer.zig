@@ -302,13 +302,52 @@ pub const Tokenizer = struct {
 
     pub fn unexpected(self:*Tokenizer, thing:?[]u8) !void {
         try stdout.print(
-            "unexpected token (|{s}| from {s}): |{c}|\n",
+            "\x1b[1;31munexpected token " 
+                    ++ "\x1b[1;37m(|\x1b[0m{s}\x1b[1;37m|\x1b[0m "
+                    ++ "\x1b[35mfrom\x1b[0m \x1b[36m{s}\x1b[0;35m while expecting "
+                    ++ "\x1b[36m{s}\x1b[1;37m): byte{{\x1b[0m{c}\x1b[1;37m}} "
+                    ++ "mem{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{
                 if (thing) |uh| uh else self.mem.items,
                 if (self.parsing_as) |as| @tagName(as) else "NOTHING",
-                self.cur
+                if (self.expected_type != .INVALID) @tagName(self.expected_type) else "[unknown]",
+                self.cur,
+                self.mem.items,
             }
         );
+
+        if (self.pos) |p| if (p < self.input.len) {
+            if (self.res.pop()) |*token| {
+                try stderr.print("last valid token:\n", .{});
+                try @constCast(token).print();
+            }
+            var offset, var end = .{ p, p };
+            while (offset > 0) : (offset -= 1) {
+                if (self.input[offset] == '\n') break;
+            }
+            while (end < self.input.len) : (end += 1) {
+                if (self.input[end] == '\n') break;
+            }
+            offset += 1;
+
+            if (self.mem.items.len > 0) end -= self.mem.items.len - 1;
+
+            var arrow = try std.ArrayList(u8).initCapacity(self.alloc, 0);
+            defer _ = arrow.deinit(self.alloc);
+
+            for (0 .. self.pos.? - offset - self.mem.items.len) |_|
+                    try arrow.append(self.alloc, ' ');
+            try arrow.appendSlice(self.alloc, "\x1b[33m");
+            for (0..self.mem.items.len) |_|
+                    try arrow.append(self.alloc, '^');
+
+            if (self.mem.items.len > 0) end += self.mem.items.len - 1;
+
+            try stdout.print(
+                "\x1b[32minvalid line:\x1b[0m\n\t{s}\n\t{s}\x1b[0m\n",
+                .{ self.input[offset..end], arrow.items, }
+            );
+        };
         std.process.exit(1);
     }
 
