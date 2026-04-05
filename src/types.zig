@@ -99,7 +99,41 @@ pub const Token = struct {
 
     pub const Errors = error {
         IsNotFlag,
+        InvalidOperation
     };
+
+    pub fn resolve_variable(self:*Token) !*Token {
+        if (self.type != .IDENT)
+            return Token.Error.InvalidOperation;
+        if (self.value.ptr) |ptr|
+            return ptr
+        else
+            return Token.Error.InvalidOperation;
+    }
+
+    pub fn set_value(self:*Token, comptime T:type, value:T) !void {
+        if (self.type != .IDENT)
+            return Token.Error.InvalidOperation;
+        var thing = if (self.value.ptr) |ptr| ptr else self; 
+        switch (T) {
+            []u8 => if (thing.is_value_type(.STRING)) {
+                    thing.value.string = value;
+                } else
+                    return Token.Error.InvalidOperation,
+
+            isize => if (self.is_value_type(.NUM)) {
+                    thing.value.num = value;
+                } else
+                    return Token.Error.InvalidOperation,
+
+            bool => if (self.is_value_type(.BOOL)) {
+                    thing.value.bool = value;
+                } else
+                    return Token.Error.InvalidOperation,
+
+            else => std.debug.panic("TODO: Token.set_value(...) for type {t}\n", .{T}),
+        }
+    }
 
     pub fn is_value_type(self:*Token, value_type:@This().ValueType) bool {
         if (self.type != .VALUE) return false;
