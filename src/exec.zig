@@ -425,4 +425,10 @@ pub const Block = struct {
     fn get_args(self:*Block) ![]Token {
         return try self.collect(.@";");
     }
+
+    pub fn can_change(self:*Block, token:Token) bool {
+        const is_const = token.type_info.ident.? == .@"set";
+        const is_known = self.known_idents.contains(token.raw);
+        return !(is_const and is_known);
+    }
 };
