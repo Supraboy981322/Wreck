@@ -217,7 +217,7 @@ pub const Tokenizer = struct {
 
     fn new_num_token(self:*Tokenizer, thing:?[]u8) !Token {
         const literal = if (thing) |foo| foo else self.mem.items;
-        const parsed = std.fmt.parseInt(usize, literal, 10) catch return Error.NAN;
+        const parsed = std.fmt.parseInt(isize, literal, 10) catch return Error.NAN;
         return .{
             .raw = try self.alloc.dupe(u8, literal),
             .type = .VALUE,
@@ -324,7 +324,7 @@ pub const Tokenizer = struct {
             return Error.INVALID;
 
         if (is_num)
-            ident.value.num = std.fmt.parseInt(usize, value, 10) catch return Error.NAN;
+            ident.value.num = std.fmt.parseInt(isize, value, 10) catch return Error.NAN;
         if (is_str)
             ident.value.string = value[1..value.len-1];
         if (is_bool) {

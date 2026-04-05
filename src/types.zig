@@ -40,7 +40,7 @@ pub const Token = struct {
     } = .{},
 
     value:struct {
-        num:?usize = null,
+        num:?isize = null,
         bool:?bool = null,
         string:?[]u8 = null,
         ptr:?*Token = null,
