@@ -29,7 +29,9 @@ if (1 == 0) {
   return true;
 })
 
-set foo = "bar";
+let foo = "bar";
+$printf("%s\n" foo);
+foo = "baz";
 $printf("%s\n" foo);
 
 #(#(an intentionally unexpected token) ==)
