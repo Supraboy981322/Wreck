@@ -299,13 +299,11 @@ pub const Tokenizer = struct {
         const is_num = for (value) |b| {
             if (!hlp.is_num(b)) break false;
         } else true;
-        std.debug.print("|{s}| is_num == {}\n", .{value, is_num});
 
         const is_str = if (!is_num and value.len > 1) switch (value[0]) {
             '"', '\'' => value[value.len-1] == value[0],
             else => false,
         } else false;
-        std.debug.print("|{s}| is_str == {}\n", .{value, is_str});
 
         const is_bool = if (!is_str and !is_num) b: {
             _ = std.meta.stringToEnum(
@@ -313,12 +311,10 @@ pub const Tokenizer = struct {
             ) orelse break :b false;
             break :b true;
         } else false;
-        std.debug.print("|{s}| is_bool == {}\n", .{value, is_bool});
 
         const is_builtin = if (!is_str and !is_num and !is_bool) 
             value[0] == '#' 
         else false;
-        std.debug.print("|{s}| is_builtin == {}\n", .{value, is_builtin});
 
         ident.type_info.value = if (is_num)
             .NUM
