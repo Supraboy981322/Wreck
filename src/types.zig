@@ -269,11 +269,11 @@ pub const Token = struct {
             "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
             .{ 7, @typeName(@TypeOf(thing)), thing, }
         );
-        if (self.value.ptr) |thing| try fmted.print(
-            alloc,
-            "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{s}\x1b[1;37m}}\x1b[0m\n",
-            .{ 7, @typeName(@TypeOf(thing)), std.mem.asBytes(thing), }
-        );
+        //if (self.value.ptr) |thing| try fmted.print(
+        //    alloc,
+        //    "\t\x1b[0;3{d}m{s}\x1b[1;37m{{\x1b[0m{b64}\x1b[1;37m}}\x1b[0m\n",
+        //    .{ 7, @typeName(@TypeOf(thing)), std.mem.asBytes(thing), }
+        //);
 
         try globs.stdout.print("{s}", .{fmted.items}); 
     }
