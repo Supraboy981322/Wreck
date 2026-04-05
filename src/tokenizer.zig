@@ -330,7 +330,7 @@ pub const Tokenizer = struct {
         if (is_num)
             ident.value.num = std.fmt.parseInt(isize, value, 10) catch return Error.NAN;
         if (is_str)
-            ident.value.string = value[1..value.len-1];
+            ident.value.string = try self.alloc.dupe(u8, value[1..value.len-1]);
         if (is_bool) {
             const sentenial = try self.alloc.dupeZ(u8, value);
             defer self.alloc.free(sentenial);
