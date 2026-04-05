@@ -115,7 +115,7 @@ pub const Exec = struct {
                             tokenizer.free(self.alloc, argv); 
                             self.alloc.free(argv);
                         }
-                        try self.run(token, argv);
+                        try self.run(token, argv, block);
                     },
                     else => std.debug.panic(
                         "TODO: FnType.{s}",
@@ -176,7 +176,18 @@ pub const Exec = struct {
                     }
                 },
                 .IDENT => {
-                    _ = block.next();
+                    switch (token.type_info.ident.?) {
+                        .@"set", .@"let" => {
+                            try block.known_idents.put(token.raw, token);
+                        },
+                        else => std.debug.panic(
+                            "TODO: exec switch block.next().?.type == "
+                                ++ ".IDENT for IdentType of {s}",
+                            .{ @tagName(token.type_info.ident.?) }
+                        ),
+                    }
+                    try @constCast(&token).print();
+                    try @constCast(&block.next().?).print();
                 },
                 else => {
                     try if (block.back()) |*t| @constCast(t).print();
@@ -196,7 +207,7 @@ pub const Exec = struct {
         self.deinit();
     }
     
-    fn string_args(self:*Exec, cmd:Token, args:[]Token) ![][]const u8 {
+    fn string_args(self:*Exec, cmd:Token, args:[]Token, block:Block) ![][]const u8 {
         var argv = try std.ArrayList([]const u8).initCapacity(self.alloc, 0);
         defer {
             for (argv.items) |a| self.alloc.free(a);
@@ -216,18 +227,19 @@ pub const Exec = struct {
                     },
                 }
             } else if (a.type == .IDENT) {
-                const og = try a.resolve_var();
-                const value = og.value.string orelse @panic("not a string (exec string_args())");
-                try stdout.print("DEBUG: {{{s}}}\n", .{value});
-                try argv.append(self.alloc, value);
+                const og = block.known_idents.get(a.raw) orelse {
+                    try self.unexpected(a.*);
+                    unreachable;
+                };
+                try argv.append(self.alloc, og.value.string.?);
             } else
                 std.debug.panic("TODO string_args(): {s}", .{@tagName(a.type)});
         }
         return try argv.toOwnedSlice(self.alloc);
     }
 
-    fn run(self:*Exec, cmd:Token, args:[]Token) !void {
-        const argv = try self.string_args(cmd, args);
+    fn run(self:*Exec, cmd:Token, args:[]Token, block:Block) !void {
+        const argv = try self.string_args(cmd, args, block);
         defer for (argv) |a| self.alloc.free(a);
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         defer _ = gpa.deinit();
