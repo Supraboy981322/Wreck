@@ -509,13 +509,12 @@ pub const Tokenizer = struct {
             switch (self.cur) {
                 '"', '\'' => {
                     if (self.parsing_as) |t| {
-                        if (self.is_string() and self.string_type == self.cur) {
+                        if (t == .STRING and self.string_type == self.cur) {
                             if (self.end_of_thing(null)) {
                                 self.parsing_as = null;
                                 self.string_type = 0;
                                 const new = try self.new_token(.VALUE, t);
                                 try self.res.append(self.alloc, new);
-                                if (self.peek() == ' ') _ = self.next();
                             } else
                                 std.debug.panic(
                                     "TODO: 'else {{}}' (|{s}| {s} line{{{d}}})",
@@ -543,24 +542,33 @@ pub const Tokenizer = struct {
 
                 '\\' => self.escaping = !self.escaping,
 
-                else => if (hlp.is_num(self.cur) and !self.is_string()) {
+                else => if (self.is_string()) {
+                    try self.mem.append(self.alloc, self.cur);
+                } else if (hlp.is_num(self.cur)) {
                     try self.consume_num();
                     const new = try self.new_token(.VALUE, .NUM);
                     try self.res.append(self.alloc, new);
-                } else {
+                } else if (self.end_of_thing(false) and self.mem.items.len > 0) {
                     try self.mem.append(self.alloc, self.cur);
-                    if (self.end_of_thing(false) and self.mem.items.len > 0) {
-                        self.parsing_as = null;
-                        self.string_type = 0;
-                        const new = self.new_who_knows_what() catch {
-                            std.debug.print(
-                                "Tokenizer.get_args() switch self.cur else => else {{", .{}
-                            );
-                            try self.unexpected(null);
-                            unreachable;
-                        };
-                        try self.res.append(self.alloc, new);
-                    }
+                    self.parsing_as = null;
+                    self.string_type = 0;
+                    const new = self.new_who_knows_what() catch {
+                        std.debug.print(
+                            "Tokenizer.get_args() switch self.cur else => "
+                                    ++ "else if (self.end_of_thing(false) ....) {{\n",
+                            .{}
+                        );
+                        try self.unexpected(null);
+                        unreachable;
+                    };
+                    try self.res.append(self.alloc, new);
+                } else if (!self.is_string() and !std.ascii.isWhitespace(self.cur)) {
+                    try self.mem.append(self.alloc, self.cur); 
+                } else if (!std.ascii.isWhitespace(self.cur)) {
+                    std.debug.print(
+                        "Tokenizer.get_args() switch self.cur else => else {{\n", .{}
+                    );
+                    try self.unexpected(null);
                 },
             }
         }
