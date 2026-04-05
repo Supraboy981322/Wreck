@@ -79,13 +79,13 @@ pub const Exec = struct {
             };
 
             const the_line = src[offset..end];
-            const before_the_thing = the_line[0..(token.line_pos - token.raw.len) - 1];
-            const the_thing = the_line[token.line_pos - token.raw.len - 1..token.line_pos - 1];
-            const after_the_thing = the_line[token.line_pos - 1..];
+            const before_the_thing = the_line[0..(token.line_pos - token.raw.len)];
+            const the_thing = the_line[token.line_pos - token.raw.len..token.line_pos];
+            const after_the_thing = the_line[token.line_pos..];
 
             try buf.print(
                 self.alloc,
-                "\n\x1b[38;2;100;100;150m{s}\x1b[31m{s}\x1b[0m{s}\n",
+                "\n\x1b[38;2;100;100;150m{s}\x1b[31m{s}\x1b[38;2;100;100;150m{s}\x1b[0m\n",
                 .{before_the_thing, the_thing, after_the_thing}
             );
             for (before_the_thing) |_|
