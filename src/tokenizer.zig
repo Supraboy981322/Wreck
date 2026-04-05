@@ -247,7 +247,11 @@ pub const Tokenizer = struct {
             return f(self, self.mem.items) catch continue :loop;
         }
         if (self.expected_type == .IDENT) {
-            const matched = std.meta.stringToEnum(Token.IdentType, self.res.pop().?.raw) orelse unreachable;
+
+            const matched = std.meta.stringToEnum(
+                Token.IdentType, self.res.pop().?.raw
+            ) orelse unreachable;
+
             const new:Token = .{
                 .raw = try self.alloc.dupe(u8, self.mem.items),
                 .type = .IDENT,
@@ -330,18 +334,26 @@ pub const Tokenizer = struct {
         if (is_bool) {
             const sentenial = try self.alloc.dupeZ(u8, value);
             defer self.alloc.free(sentenial);
-            ident.value.bool = std.zon.parse.fromSlice(bool, self.alloc, sentenial, null, .{}) catch unreachable;
+            ident.value.bool = std.zon.parse.fromSlice(
+                bool,
+                self.alloc,
+                sentenial,
+                null,
+            .{}) catch unreachable;
         }
 
         var tracked = try ident.own(self.alloc);
         tracked.value.ptr = ident;
-        tracked.value.string = if (is_str) try self.alloc.dupe(u8, value[1..value.len-1]) else null;
+        tracked.value.string = if (is_str)
+            value[1..value.len-1]
+        else
+            null;
 
         try self.known_idents.append(self.alloc, tracked);
     }
 
     pub fn do(self:*Tokenizer) !Tokenized {
-        defer self.known_idents.clearAndFree(self.alloc);
+        //defer self.known_idents.clearAndFree(self.alloc);
 
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b)) if (self.mem.items.len > 0 and !self.is_string()) {
