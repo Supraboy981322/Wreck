@@ -290,7 +290,7 @@ pub const Tokenizer = struct {
 
     fn populate_ident(self:*Tokenizer, ident:*Token) !void {
         const value = self.mem.items;
-        if (value.len < 1) try self.unexpected(null);
+        if (value.len < 1) return Error.INVALID;
 
         const is_num = for (value) |b| {
             if (!hlp.is_num(b)) break false;
