@@ -15,6 +15,10 @@ pub const Token = struct {
     keyword_type:?@This().Keyword = null,
     parsed_num:?usize = null, // TODO: other number types
     bool_value:?bool = null,
+    ident_type:?@This().IdentType = null,
+    string_value:?[]u8 = null,
+
+    token_ptr:?*Token = null,
 
     line_number:usize,
     line_pos:usize,
@@ -25,6 +29,7 @@ pub const Token = struct {
         VALUE,
         SYMBOL,
         KEYWORD,
+        IDENT,
     };
 
     pub const ValueType = enum {
@@ -35,6 +40,14 @@ pub const Token = struct {
         STRING,
         COMMENT,
         BOOL,
+        BUILTIN,
+        TOKEN_PTR,
+    };
+
+    pub const IdentType = enum {
+        @"fn",
+        @"let",
+        @"set",
     };
 
     pub const ThingType = enum {
@@ -58,6 +71,7 @@ pub const Token = struct {
         @"?!",  @"else",
         @"and", @"or", @"xor",
         @"fn",
+        @"let", @"set",
     };
 
     pub const Errors = error {
