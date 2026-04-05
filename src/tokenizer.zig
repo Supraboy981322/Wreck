@@ -183,6 +183,9 @@ pub const Tokenizer = struct {
         const symbol = std.meta.stringToEnum(
             Token.Symbol, thing
         ) orelse return Error.INVALID;
+
+        if (symbol == .@"=") self.expected_type = .VALUE;
+
         return .{
             .raw = try self.alloc.dupe(u8, thing),
             .type = .SYMBOL,
