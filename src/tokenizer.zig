@@ -518,6 +518,7 @@ pub const Tokenizer = struct {
                                 self.string_type = 0;
                                 const new = try self.new_token(.VALUE, t);
                                 try self.res.append(self.alloc, new);
+                                if (self.peek() == ' ') _ = self.next();
                             } else
                                 std.debug.panic(
                                     "TODO: 'else {{}}' (|{s}| {s} line{{{d}}})",
