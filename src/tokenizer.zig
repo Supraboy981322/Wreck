@@ -237,6 +237,7 @@ pub const Tokenizer = struct {
             .cur = 0,
             .mem = try std.ArrayList(u8).initCapacity(alloc, 0),
             .res = try std.ArrayList(Token).initCapacity(alloc, 0),
+            .known_idents = try std.ArrayList(Token).initCapacity(alloc, 0),
             .alloc = alloc,
             .escaping = false,
             .comment_depth = 0,
@@ -247,6 +248,7 @@ pub const Tokenizer = struct {
     pub fn deinit(self:*Tokenizer) void {
         _ = self.mem.deinit(self.alloc);
         _ = self.res.deinit(self.alloc);
+        _ = self.known_idents.deinit(self.alloc);
     }
 
     fn dump_mem(self:*Tokenizer) ![]u8 {
@@ -398,7 +400,8 @@ pub const Tokenizer = struct {
     }
 
     fn new_who_knows_what(self:*Tokenizer) !Token {
-        defer self.mem.clearAndFree(self.alloc);
+        var ok:bool = true;
+        defer { if (ok) self.mem.clearAndFree(self.alloc); }
         const to_try = [_]*const @TypeOf(Tokenizer.new_keyword_token) {
             &Tokenizer.new_keyword_token,
             &Tokenizer.new_symbol_token,
@@ -407,19 +410,114 @@ pub const Tokenizer = struct {
         loop: for (to_try) |f| {
             return f(self, self.mem.items) catch continue :loop;
         }
+        if (self.expected_type == .IDENT) {
+            const matched = std.meta.stringToEnum(Token.IdentType, self.res.pop().?.raw) orelse unreachable;
+            const new:Token = .{
+                .raw = try self.alloc.dupe(u8, self.mem.items),
+                .type = .IDENT,
+                .ident_type = matched,
+                .line_number = self.line_num,
+                .line_pos = self.line_pos,
+            };
+            self.expected_type = switch (matched) {
+                .@"fn" => .INVALID,
+                .@"let", .@"set" => .VALUE,
+            };
+            return new;
+        } else if (self.expected_type == .VALUE) {
+            //remove the symbol before
+            var symbol = self.res.pop().?;
+            defer symbol.free(self.alloc);
+
+            var identifier = self.res.pop().?;
+            try self.populate_ident(&identifier);
+            self.expected_type = .INVALID;
+
+            return identifier;
+        } else {
+            for (self.known_idents.items) |*ident|
+                if (std.mem.eql(u8, ident.raw, self.mem.items))
+                    try self.res.append(self.alloc, try @constCast(ident).own(self.alloc))
+                else std.debug.panic("{s} != {s}\n", .{ident.raw, self.mem.items});
+        }
+
+        ok = false;
         return Error.INVALID;
     }
 
+    fn populate_ident(self:*Tokenizer, ident:*Token) !void {
+        const value = self.mem.items;
+        if (value.len < 1) try self.unexpected(null);
+
+        const is_num = for (value) |b| {
+            if (!hlp.is_num(b)) break false;
+        } else true;
+        std.debug.print("|{s}| is_num == {}\n", .{value, is_num});
+
+        const is_str = if (!is_num and value.len > 1) switch (value[0]) {
+            '"', '\'' => value[value.len-1] == value[0],
+            else => false,
+        } else false;
+        std.debug.print("|{s}| is_str == {}\n", .{value, is_str});
+
+        const is_bool = if (!is_str and !is_num) b: {
+            _ = std.meta.stringToEnum(
+                enum { @"true", @"false" }, value
+            ) orelse break :b false;
+            break :b true;
+        } else false;
+        std.debug.print("|{s}| is_bool == {}\n", .{value, is_bool});
+
+        const is_builtin = if (!is_str and !is_num and !is_bool) 
+            value[0] == '#' 
+        else false;
+        std.debug.print("|{s}| is_builtin == {}\n", .{value, is_builtin});
+
+        ident.value_type = if (is_num)
+            .NUM
+        else if (is_str)
+            .STRING
+        else if (is_bool)
+            .BOOL
+        else if (is_builtin)
+            .BUILTIN
+        else
+            return Error.INVALID;
+
+        if (is_num)
+            ident.parsed_num = std.fmt.parseInt(usize, value, 10) catch return Error.NAN;
+        if (is_str)
+            ident.string_value = value[1..value.len-1];
+        if (is_bool) {
+            const sentenial = try self.alloc.dupeZ(u8, value);
+            defer self.alloc.free(sentenial);
+            ident.bool_value = std.zon.parse.fromSlice(bool, self.alloc, sentenial, null, .{}) catch unreachable;
+        }
+
+        var tracked = try ident.own(self.alloc);
+        tracked.token_ptr = ident;
+
+        try self.known_idents.append(self.alloc, tracked);
+    }
+
     pub fn do(self:*Tokenizer) ![]Token {
+        defer self.known_idents.clearAndFree(self.alloc);
+
         loop: while (self.next()) |b| {
             if (std.ascii.isWhitespace(b)) if (self.mem.items.len > 0 and !self.is_string()) {
 
                 defer self.mem.clearAndFree(self.alloc);
-                const tokenized:Token = self.new_who_knows_what() catch {
+                var tokenized:Token = self.new_who_knows_what() catch {
+                    try stdout.print("TODO: remove this print\n", .{});
                     try self.unexpected(null);
                     unreachable;
                 };
+
                 try self.res.append(self.alloc, tokenized);
+
+                if (tokenized.is_oneof_keywords(
+                    &globs.keyword_sets_following_type.ident
+                )) self.expected_type = .IDENT;
 
                 continue :loop;
             } else if (!self.is_string()) continue :loop;
@@ -525,7 +623,7 @@ pub const Tokenizer = struct {
             try stderr.print("error attempting to parse args: (mem not empty)\n", .{});
             std.process.exit(1);
         }
-        while (self.next() != null and (self.cur != ')' or self.is_string())) {
+        loop: while (self.next() != null and ((self.cur != ')' and self.cur != ';') or self.is_string())) {
             if (std.ascii.isWhitespace(self.cur)) if (self.parsing_as) |as| {
                 if (as == .STRING)
                     try self.mem.append(self.alloc, self.cur)
@@ -597,7 +695,8 @@ pub const Tokenizer = struct {
                 },
             }
         }
-        return self.peek() != 0 or self.cur != ')';
+        try self.add_if_mem();
+        return self.peek() != 0 or (self.cur != ')' and self.cur != ';');
     }
 
     pub fn print(self:*Tokenizer, tokens:[]Token) !void {
