@@ -177,7 +177,10 @@ pub const Token = struct {
             .value = .{
                 .num = self.value.num,
                 .bool = self.value.bool,
-                .string = self.value.string,
+                .string = if (self.value.string) |str|
+                        try alloc.dupe(u8, str)
+                    else
+                        null,
                 .ptr = self.value.ptr,
             },
         };
