@@ -232,6 +232,7 @@ pub const Exec = struct {
                 }
             } else if (a.type == .IDENT) {
                 const og = block.known_idents.get(a.raw) orelse {
+                    std.debug.print("Exec.string_args(...)\n", .{});
                     try self.unexpected(a.*);
                     unreachable;
                 };
