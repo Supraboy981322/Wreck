@@ -189,20 +189,24 @@ pub const Tokenizer = struct {
     input:[]const u8,
     line_num:usize = 1,
     line_pos:usize = 0,
+    comment_depth:usize,
+    paren_depth:usize = 0,
+    is_start_of_thing:bool,
 
     cur:u8,
     pos:?usize,
+    escaping:bool,
+    string_type:u8,
+    alloc:std.mem.Allocator,
+    thing_type:?Token.ThingType,
+
     expected_type:Token.Type,
     parsing_as:?Token.ValueType,
+
     mem:std.ArrayList(u8),
     res:std.ArrayList(Token),
-    alloc:std.mem.Allocator,
-    string_type:u8,
-    paren_depth:usize = 0,
-    escaping:bool,
-    comment_depth:usize,
-    is_start_of_thing:bool,
-    thing_type:?Token.ThingType,
+    known_idents:std.ArrayList(Token),
+
 
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         const offset = if (in[0] == '#' and in[1] == '!') b: {
@@ -437,8 +441,6 @@ pub const Tokenizer = struct {
                 ';', '{', '}' => {
                     try self.add_if_mem();
 
-                    if (self.mem.items.len > 0)
-                        try self.unexpected(null);
                     const new = try self.new_symbol_token(@constCast(&[_]u8{b}));
                     try self.res.append(self.alloc, new);
                 },
@@ -519,7 +521,9 @@ pub const Tokenizer = struct {
                     );
                     std.process.exit(1);
                 }
-            } else {} else if (self.escaping) {
+                continue :loop;
+            };
+            if (self.escaping) {
                 try self.mem.append(
                     self.alloc, switch (self.cur) {
                         // TODO: octal, decimal, hex, and string interpolation 
@@ -535,7 +539,9 @@ pub const Tokenizer = struct {
                     }
                 );
                 self.escaping = !self.escaping;
-            } else switch (self.cur) {
+                continue :loop;
+            }
+            switch (self.cur) {
                 '"', '\'' => {
                     if (self.parsing_as) |t| {
                         if (self.is_string() and self.string_type == self.cur) {
