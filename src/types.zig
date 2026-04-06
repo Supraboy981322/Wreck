@@ -210,7 +210,10 @@ pub const Token = struct {
     }
 
     pub fn free(self:*Token, alloc:std.mem.Allocator) void {
-        alloc.free(self.raw);
+        if (!self.is_value_type(.VOID))
+            alloc.free(self.raw);
+        if (self.value.string) |str|
+            alloc.free(str);
     }
 
     pub fn print(self:*Token) !void {
