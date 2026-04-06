@@ -436,6 +436,7 @@ pub const Tokenizer = struct {
 
                     if (pre_is_fn_declaration) {
                         std.debug.print("TODO: function declaration params", .{}); 
+                        // for now, the function params are ignored, TODO: tokenize them
                         while (self.next() != null and self.cur != ')') {}
                     } else if (!try self.get_args()) {
                         try stderr.print("\x1b[5;3;1;33mfailed to get args\x1b[0m\n", .{});
