@@ -1,4 +1,5 @@
 const std = @import("std");
+const types = @import("types.zig");
 
 const Keyword = @import("tokenizer.zig").Token.Keyword;
 
@@ -20,3 +21,13 @@ pub fn discard(thing:anytype) void {
     var wr = &@constCast(&std.Io.Writer.Discarding.init(&.{})).writer;
     wr.print("{any}", .{thing}) catch {};
 }
+
+pub const void_token = types.Token{
+    .raw = undefined,
+    .type = .VALUE,
+    .line_number = 0,
+    .line_pos = 0,
+    .type_info = .{
+        .value = .VOID,
+    },
+};

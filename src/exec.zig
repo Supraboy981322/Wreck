@@ -116,7 +116,7 @@ pub const Exec = struct {
         std.process.exit(1);
     }
 
-    pub fn do_block(self:*Exec, input:?[]Token, depth:usize) !void {
+    pub fn do_block(self:*Exec, input:?[]Token, depth:usize) !Token {
 
         const tokens = if (input) |in| in else self.in;
         var block = try Block.init(tokens, depth, self.alloc, self.known_idents);
@@ -142,7 +142,9 @@ pub const Exec = struct {
                     switch (token.type_info.symbol.?) {
                         .@"{" => {
                             const code = try block.collect_depth(.@"{", .@"}");
-                            try self.do_block(code, depth + 1);
+                            var res = try self.do_block(code, depth + 1);
+                            if (!res.is_value_type(.VOID))
+                                @panic("TODO: result of recursed do_block(...) call");
                         },
                         else => try self.unexpected(token, null),
                     }
@@ -180,10 +182,15 @@ pub const Exec = struct {
                                 @constCast(tok).free(self.alloc);
                             };
 
-                            try if (self.conditional_res.?)
-                                self.do_block(if_true, depth + 1)
-                            else if (if_false) |toks|
-                                self.do_block(toks, depth + 1);
+                            if (self.conditional_res.?) {
+                                var res = try self.do_block(if_true, depth + 1);
+                                if (!res.is_value_type(.VOID))
+                                    @panic("TODO: result of recursed do_block(...) call");
+                            } else if (if_false) |toks| {
+                                var res = try self.do_block(toks, depth + 1);
+                                if (!res.is_value_type(.VOID))
+                                    @panic("TODO: result of recursed do_block(...) call");
+                            }
                         },
                         else => std.debug.panic(
                             "TODO (keyword): {s}\n",
@@ -220,15 +227,17 @@ pub const Exec = struct {
                 },
             }
         }
+        return globs.void_token;
     }
 
-    pub fn do(self:*Exec) !void {
-        try self.do_block(null, 0);
+    pub fn do(self:*Exec) !Token {
+        return try self.do_block(null, 0);
     }
 
     pub fn do_then_deinit(self:*Exec) !void {
-        try self.do();
+        const res = try self.do();
         self.deinit();
+        return res;
     }
     
     fn string_args(self:*Exec, cmd:Token, args:[]Token, block:Block) ![][]const u8 {

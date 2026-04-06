@@ -41,13 +41,16 @@ pub fn main() !void {
     const state = try tokenizer.do();
     defer tokenizer.free(state.tokens);
 
-    //try stderr.print("\ntokenized:\n", .{});
-    //try tokenizer.print(state.tokens);
+    try stderr.print("\ntokenized:\n", .{});
+    try tokenizer.print(state.tokens);
 
-    //try stderr.print("\noutput:\n", .{});
+    try stderr.print("\noutput:\n", .{});
     var exec = try Exec.init(state, code, allocator);//alloc); // TODO: cleanup allocation
     defer exec.deinit();
-    exec.do() catch |e| {
+    var res = exec.do() catch |e| {
         try stderr.print("{t}\n", .{e});
+        std.process.exit(1);
+        unreachable;
     };
+    try res.print();
 }
