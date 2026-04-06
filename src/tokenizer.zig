@@ -43,7 +43,6 @@ pub const Tokenizer = struct {
     res:std.ArrayList(Token),
     known_idents:std.ArrayList(Token),
 
-
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         const offset = if (in[0] == '#' and in[1] == '!') b: {
             var i:usize = 0;
@@ -332,9 +331,11 @@ pub const Tokenizer = struct {
     fn populate_ident(self:*Tokenizer, ident:*Token) !void {
         const value =
             if (ident.type == .VALUE)
-                ident.raw
+                try self.alloc.dupe(u8, ident.raw)
             else
-                self.mem.items;
+                try self.alloc.dupe(u8, self.mem.items);
+        defer self.alloc.free(value);
+
         if (value.len < 1) return Error.INVALID;
 
         const is_num = for (value) |b| {
@@ -441,7 +442,7 @@ pub const Tokenizer = struct {
                             false;
 
                     if (pre_is_fn_declaration) {
-                        std.debug.print("TODO: function declaration params", .{}); 
+                        std.debug.print("TODO: function declaration params\n", .{}); 
                         // for now, the function params are ignored, TODO: tokenize them
                         while (self.next() != null and self.cur != ')') {}
                     } else if (!try self.get_args()) {

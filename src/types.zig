@@ -45,9 +45,9 @@ pub const Function = struct {
     };
 
     pub fn free(self:*Function, alloc:std.mem.Allocator) void {
-        alloc.free(self.name);
+        if (self.name) |n| alloc.free(n);
 
-        for (self.code) |t|
+        for (self.code) |*t|
             @constCast(t).free(alloc);
 
         for (self.params) |*p|
@@ -57,21 +57,20 @@ pub const Function = struct {
     pub fn own_and_free(self:*Function, alloc:std.mem.Allocator) !Function {
         defer self.free(alloc);
 
-        var code = try std.ArrayList(*Token).initCapacity(alloc, 0); 
+        var code = try std.ArrayList(Token).initCapacity(alloc, 0); 
         defer _ = code.deinit(alloc);
         for (self.code) |t|
-            try code.append(alloc, @constCast(&(try @constCast(t).own(alloc))));
+            try code.append(alloc, t);
 
         var params = try std.ArrayList(Param).initCapacity(alloc, 0); 
         defer _ = params.deinit(alloc);
-        for (self.params) |*p|
-            try params.append(alloc, try @constCast(p).own(alloc));
+        for (self.params) |p|
+            try params.append(alloc, p);
 
         return .{
             .code = try code.toOwnedSlice(alloc),
-            .name = try alloc.dupe(u8, self.name),
             .source = undefined, // TODO: dupe if I decide to add it 
-            .return_template = @constCast(&(try self.return_template.own(alloc))),
+            .return_template = try self.return_template.own(alloc),
             .params = try params.toOwnedSlice(alloc),
         };
     }
@@ -105,8 +104,6 @@ pub const Token = struct {
         string:?[]u8 = null,
         ptr:?*Token = null,
     } = .{},
-
-    function:?Function = null,
 
     pub const Type = enum {
         INVALID,
