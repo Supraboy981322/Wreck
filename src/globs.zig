@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 
 const Keyword = @import("tokenizer.zig").Token.Keyword;
+const Symbol = @import("tokenizer.zig").Token.Symbol;
 
 pub const stdout = &@constCast(&std.fs.File.stdout().writer(&.{})).interface;
 pub const stderr = &@constCast(&std.fs.File.stderr().writer(&.{})).interface;
@@ -21,6 +22,10 @@ pub fn discard(thing:anytype) void {
     var wr = &@constCast(&std.Io.Writer.Discarding.init(&.{})).writer;
     wr.print("{any}", .{thing}) catch {};
 }
+
+pub const symbol_sets = struct {
+    pub var braces = [_]Symbol{ .@"{", .@"}" };
+};
 
 pub const void_token = types.Token{
     .raw = undefined,

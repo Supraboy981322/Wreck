@@ -168,10 +168,24 @@ pub const Token = struct {
         return false;
     }
 
+    pub fn is_oneof_symbols(self:*Token, check:[]Token.Symbol) bool {
+        if (self.type != .SYMBOL) return false;
+        return for (check) |thing| {
+            if (self.is_symbol(thing)) break true;
+        } else
+            false;
+    }
+
+    pub fn is_ident_type(self:*Token, check:Token.IdentType) bool {
+        if (self.type != .IDENT) return false;
+        return self.type_info.ident.? == check;
+    }
+
     pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
         return .{
             .raw = try alloc.dupe(u8, self.raw),
             .type = self.type,
+            .depth = self.depth,
 
             .line_number = self.line_number,
             .line_pos = self.line_pos,
