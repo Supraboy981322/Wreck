@@ -13,6 +13,11 @@ pub const Error = error {
     INVALID,
 };
 
+const ThingInNamespace = types.ThingInNamespace;
+const Function = types.Function;
+const Param = types.Function.Param;
+
+pub const TokenIterator = hlp.TokenIterator;
 pub const Tokenized = types.Tokenized;
 pub const Token = types.Token;
 
@@ -381,10 +386,11 @@ pub const Tokenizer = struct {
         var tracked = try ident.own(self.alloc);
         tracked.value.ptr = ident;
         tracked.value.string = if (is_str)
-            value[1..value.len-1]
+            try self.alloc.dupe(u8, value[1..value.len-1])
         else
             null;
 
+        std.debug.print("ident names: {s} and {s}\n", .{tracked.raw, ident.raw});
         if (ident.type != .VALUE) 
             try self.known_idents.append(self.alloc, tracked);
     }
@@ -728,36 +734,97 @@ pub const Tokenizer = struct {
             else => {}
         };
     }
-    
+
     pub fn finalize(self:*Tokenizer) !Tokenized {
-        var finalized = Tokenized{
-            .arena = std.heap.ArenaAllocator.init(std.heap.page_allocator),
-            .alloc = undefined,
+        var arena = std.heap.ArenaAllocator.init(self.alloc);
+        defer {
+            _ = arena.reset(.free_all);
+            _ = arena.deinit();
+        }
+        const process_alloc = arena.allocator();
+
+        var finalized:Tokenized = .{
             .tokens = undefined,
             .global_namespace = undefined,
+            .alloc = undefined,
+            .arena = std.heap.ArenaAllocator.init(self.alloc),
         };
-        //finalized.alloc = finalized.arena.allocator();
-        finalized.tokens = self.res.items;
+        finalized.alloc = finalized.arena.allocator();
+        finalized.global_namespace = std.StringHashMap(ThingInNamespace).init(finalized.alloc);
 
-        //var final_tokens = try std.ArrayList(Token).initCapacity(finalized.alloc, 0);
-        //defer _ = final_tokens.deinit(finalized.alloc);
+        var itr = TokenIterator.init(self.res.items, .{ .use_void = true });
 
-        //var final_idents = try std.ArrayList(*Token).initCapacity(finalized.alloc, 0);
-        //defer _ = final_tokens.deinit(finalized.alloc);
+        var current_fn_mem:?Function = null;
+        var mem = try std.ArrayList(Token).initCapacity(process_alloc, 0);
+        var res = try std.ArrayList(Token).initCapacity(process_alloc, 0);
+        var cur_fn_pos:struct {
+            line:?usize = null,
+            pos:?usize = null,
+        } = .{};
 
-        //for (self.res.items) |token| {
-        //    switch (token.type) {
-        //        .IDENT => {
-        //            //State{
-        //            //    .idents = final_idents.items,
-        //            //}.find_ident(token.raw);
-        //            //for (final_idents.items) |ident| {
-        //            //    if (finalized
-        //            //}
-        //        },
-        //        else => {}
-        //    }
-        //}
+        var depth:usize = 0;
+
+        while (try itr.next()) |*token| {
+            if (depth == 0) if (@constCast(token).is_ident(.@"fn")) {
+                if (current_fn_mem) |_|
+                    @panic("function mem not cleared");
+                defer depth += 1;
+                cur_fn_pos = .{
+                    .line = token.line_number,
+                    .pos = token.line_pos,
+                };
+                const fn_params = b: {
+                    var blk_mem = try std.ArrayList(Param).initCapacity(process_alloc, 0);
+                    defer {
+                        _ = blk_mem.deinit(process_alloc);
+                        _ = itr.back();
+                    }
+                    while (try itr.next() != null and !itr.cur.is_symbol(.@"{")) {
+                        const param:Param = .{
+                            .name = try finalized.alloc.dupe(u8, itr.cur.raw),
+                            .type = itr.cur.type_info.value orelse .VOID,
+                            .value = null,
+                        };
+                        try blk_mem.append(process_alloc, param);
+                    }
+                    break :b try blk_mem.toOwnedSlice(process_alloc);
+                };
+                
+                current_fn_mem = .{
+                    .name = try finalized.alloc.dupe(u8, token.raw),
+                    .code = undefined,
+                    .params = fn_params,
+                    .return_template = globs.void_token,
+                };
+            } else {
+
+                // TODO: other globals
+
+                try res.append(
+                    process_alloc,
+                    try @constCast(token).own(finalized.alloc),
+                );
+            } else {
+                if (mem.items.len > 0) {
+                    defer _ = mem.clearAndFree(process_alloc);
+                    if (current_fn_mem) |*fn_mem| {
+                        defer current_fn_mem = null;
+                        fn_mem.code = mem.items;
+                        try finalized.global_namespace.put(
+                            fn_mem.name.?,
+                            .{ .function = current_fn_mem, },
+                        );
+                    }
+                } else {
+                    try mem.append(
+                        process_alloc,
+                        try @constCast(token).own(finalized.alloc)
+                    );
+                }
+            }
+        }
+        
+        finalized.tokens = res.items;
 
         return finalized;
     }
