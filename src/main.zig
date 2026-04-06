@@ -34,17 +34,18 @@ pub fn main() !void {
         _ = arena.reset(.free_all);
         _ = arena.deinit();
     }
-    const allocator = arena.allocator();
+    //const allocator = arena.allocator();
 
-    var tokenizer = try Tokenizer.init(code, allocator);//alloc); // TODO: cleanup allocation
+    var tokenizer = try Tokenizer.init(code, alloc);//alloc); // TODO: cleanup allocation
     defer tokenizer.deinit();
-    const state = try tokenizer.do();
+    var state = try tokenizer.do();
+    defer state.free(alloc);
 
     try stderr.print("\ntokenized:\n", .{});
     try tokenizer.print(state.tokens);
 
     try stderr.print("\noutput:\n", .{});
-    var exec = try Exec.init(state, code, allocator);//alloc); // TODO: cleanup allocation
+    var exec = try Exec.init(state, code, alloc);//alloc); // TODO: cleanup allocation
     defer exec.deinit();
     var res = exec.do() catch |e| {
         try stderr.print("{t}\n", .{e});
