@@ -23,14 +23,15 @@ if (1 == 0) {
 
 #( TODO: functions )
 
-#(fn main() bool {
+fn main() bool {
   $printf("foo\n");
   #(@std.printf("foo\n");)
   return true;
-})
+}
 
 let foo = "bar";
 $printf("%s\n" foo);
+
 foo = "baz";
 $printf("%s\n" foo);
 
