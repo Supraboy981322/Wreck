@@ -79,9 +79,40 @@ pub const Function = struct {
 
 pub const Tokenized = struct {
     tokens:[]Token,
-    global_namespace:std.StringHashMap(Token),
+    global_namespace:std.StringHashMap(ThingInNamespace),
     alloc:std.mem.Allocator,
     arena:std.heap.ArenaAllocator,
+
+    pub fn free(self:*Tokenized, alloc:std.mem.Allocator) void {
+        for (self.tokens) |*token|
+            @constCast(token).free(alloc);
+        var itr = self.global_namespace.iterator();
+        while (itr.next()) |kv| {
+            alloc.free(kv.key_ptr.*);
+            const value = kv.value_ptr.*;
+            if (value.function) |*f|
+                @constCast(f).free(alloc);
+            if (value.variable) |*v|
+                @constCast(v).free(alloc);
+        }
+    }
+};
+
+pub const ThingInNamespace = struct {
+    function:?Function = null,
+    variable:?Token = null,
+
+    pub fn is_fn(self:*ThingInNamespace) bool {
+        if (self.function != null and self.variable != null)
+            @panic("ThingInNamespace appears to be both a function and a variable");
+        return self.function != null;
+    }
+
+    pub fn is_var(self:*ThingInNamespace) bool {
+        if (self.function != null and self.variable != null)
+            @panic("ThingInNamespace appears to be both a variable and a function");
+        return self.variable != null;
+    }
 };
 
 pub const Token = struct {
