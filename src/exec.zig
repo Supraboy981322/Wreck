@@ -12,7 +12,6 @@ const Token = tokenizer.Token;
 const Keyword = Token.Keyword;
 const conditional = evaluator.conditional;
 
-const State = types.State;
 const Tokenized = types.Tokenized;
 
 pub const Exec = struct {
@@ -22,7 +21,6 @@ pub const Exec = struct {
     conditional_res:?bool,
 
     known_idents:std.StringHashMap(Token),
-    state:State,
 
     pub fn init(tokens: Tokenized, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
         //var arena = std.heap.ArenaAllocator.init(owned_alloc);//std.heap.page_allocator);
@@ -32,7 +30,6 @@ pub const Exec = struct {
             .source = source,
             .alloc = owned_alloc,
             .conditional_res = null,
-            .state = tokens.base_state,
             .known_idents = undefined,
         };
         foo.in = tokens.tokens; //try tokenizer.dupe(foo.alloc, tokens.tokens);

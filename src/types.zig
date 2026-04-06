@@ -15,18 +15,71 @@ pub const State = struct {
 
 pub const Function = struct {
     code:[]*Token,
-    source:[]u8,
+    name:[]u8,
+    source:[]u8 = undefined,
     return_template:*Token,
-    params:[]struct {
+    params:[]Param,
+
+    pub const Param = struct {
         name:[]u8,
         type:Token.ValueType,
         value:?*Token,
-    },
+        
+        pub fn free(self:*Param, alloc:std.mem.Allocator) void {
+            alloc.free(self.name);
+            if (self.value) |v|
+                @constCast(v).free(alloc);
+        }
+
+        pub fn own(self:*Param, alloc:std.mem.Allocator) !Param {
+            return .{
+                .name = try alloc.dupe(u8, self.name),
+                .type = self.type,
+                .value =
+                    if (self.value) |v|
+                        @constCast(&(try @constCast(v).own(alloc)))
+                    else
+                        null,
+            };
+        }
+    };
+
+    pub fn free(self:*Function, alloc:std.mem.Allocator) void {
+        alloc.free(self.name);
+
+        for (self.code) |t|
+            @constCast(t).free(alloc);
+
+        for (self.params) |*p|
+            @constCast(p).free(alloc);
+    }
+
+    pub fn own_and_free(self:*Function, alloc:std.mem.Allocator) !Function {
+        defer self.free(alloc);
+
+        var code = try std.ArrayList(*Token).initCapacity(alloc, 0); 
+        defer _ = code.deinit(alloc);
+        for (self.code) |t|
+            try code.append(alloc, @constCast(&(try @constCast(t).own(alloc))));
+
+        var params = try std.ArrayList(Param).initCapacity(alloc, 0); 
+        defer _ = params.deinit(alloc);
+        for (self.params) |*p|
+            try params.append(alloc, try @constCast(p).own(alloc));
+
+        return .{
+            .code = try code.toOwnedSlice(alloc),
+            .name = try alloc.dupe(u8, self.name),
+            .source = undefined, // TODO: dupe if I decide to add it 
+            .return_template = @constCast(&(try self.return_template.own(alloc))),
+            .params = try params.toOwnedSlice(alloc),
+        };
+    }
 };
 
 pub const Tokenized = struct {
     tokens:[]Token,
-    base_state:State,
+    global_namespace:std.StringHashMap(Token),
     alloc:std.mem.Allocator,
     arena:std.heap.ArenaAllocator,
 };

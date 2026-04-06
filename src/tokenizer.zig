@@ -734,9 +734,7 @@ pub const Tokenizer = struct {
             .arena = std.heap.ArenaAllocator.init(std.heap.page_allocator),
             .alloc = undefined,
             .tokens = undefined,
-            .base_state = .{
-                .idents = undefined,
-            },
+            .global_namespace = undefined,
         };
         //finalized.alloc = finalized.arena.allocator();
         finalized.tokens = self.res.items;

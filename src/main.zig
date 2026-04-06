@@ -39,7 +39,6 @@ pub fn main() !void {
     var tokenizer = try Tokenizer.init(code, allocator);//alloc); // TODO: cleanup allocation
     defer tokenizer.deinit();
     const state = try tokenizer.do();
-    defer tokenizer.free(state.tokens);
 
     try stderr.print("\ntokenized:\n", .{});
     try tokenizer.print(state.tokens);
