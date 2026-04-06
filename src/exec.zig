@@ -11,6 +11,7 @@ const stdout = globs.stdout;
 const Token = tokenizer.Token;
 const Keyword = Token.Keyword;
 const conditional = evaluator.conditional;
+const ThingInNamespace = types.ThingInNamespace;
 
 const Tokenized = types.Tokenized;
 
@@ -20,7 +21,7 @@ pub const Exec = struct {
     alloc:std.mem.Allocator,
     conditional_res:?bool,
 
-    known_idents:std.StringHashMap(Token),
+    known_idents:std.StringHashMap(ThingInNamespace),
 
     pub fn init(tokens: Tokenized, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
         //var arena = std.heap.ArenaAllocator.init(owned_alloc);//std.heap.page_allocator);
@@ -33,14 +34,17 @@ pub const Exec = struct {
             .known_idents = undefined,
         };
         foo.in = tokens.tokens; //try tokenizer.dupe(foo.alloc, tokens.tokens);
-        foo.known_idents = std.StringHashMap(Token).init(foo.alloc);
+        foo.known_idents = std.StringHashMap(ThingInNamespace).init(foo.alloc);
         return foo;
     }
 
     pub fn deinit(self:*Exec) void {
         while (@constCast(&self.known_idents.iterator()).next()) |ident| {
             self.alloc.free(ident.key_ptr.*);
-            ident.value_ptr.free(self.alloc);
+            if (ident.value_ptr.variable) |*v|
+                @constCast(v).free(self.alloc)
+            else if (ident.value_ptr.function) |*f|
+                @constCast(f).free(self.alloc);
         }
         self.known_idents.deinit();
         //tokenizer.free(self.alloc, self.in);
@@ -200,7 +204,9 @@ pub const Exec = struct {
                         .@"set", .@"let" => if (block.next_is_symbol(.@";")) {
                             _ = block.next();
                             if (block.can_change(token))
-                                try block.known_idents.put(token.raw, token)
+                                try block.known_idents.put(token.raw, ThingInNamespace{
+                                    .variable = token,
+                                })
                             else {
                                 try self.unexpected(
                                     token,
@@ -257,12 +263,15 @@ pub const Exec = struct {
                     },
                 }
             } else if (a.type == .IDENT) {
-                const og = block.known_idents.get(a.raw) orelse {
+                var og = block.known_idents.get(a.raw) orelse {
                     std.debug.print("Exec.string_args(...)\n", .{});
                     try self.unexpected(a.*, null);
                     unreachable;
                 };
-                try argv.append(self.alloc, og.value.string.?);
+                if (og.variable) |*v| // TODO: non strings
+                    try argv.append(self.alloc, v.value.string.?)
+                else
+                    @panic("TODO: string_args(...) value from function call");
             } else {
                 std.debug.print("TODO string_args(): {s}\n", .{@tagName(a.type)});
                 try @constCast(a).print();
@@ -313,13 +322,13 @@ pub const Block = struct {
     alloc:std.mem.Allocator,
     depth:usize,
 
-    known_idents:std.StringHashMap(Token),
+    known_idents:std.StringHashMap(ThingInNamespace),
 
     pub fn init(
         code:[]Token,
         parent_depth:usize,
         alloc:std.mem.Allocator,
-        parent_idents:std.StringHashMap(Token),
+        parent_idents:std.StringHashMap(ThingInNamespace),
     ) !Block {
         var block = Block{
             .code = code,
@@ -335,10 +344,14 @@ pub const Block = struct {
         for (self.code) |*token|
             @constCast(token).free(self.alloc);
         var itr = self.known_idents.iterator();
-        while (itr.next()) |ident| if (ident.value_ptr.*.depth == self.depth) {
-            ident.value_ptr.free(self.alloc);
-            self.alloc.free(ident.key_ptr.*);
-        };
+        while (itr.next()) |ident| if (ident.value_ptr.variable) |*v|
+            if (v.depth == self.depth) {
+                @constCast(v).free(self.alloc);
+                self.alloc.free(ident.key_ptr.*);
+            } else {};
+        // TODO: free local functions
+        // else if (ident.function) |f|
+        //    if (f.depth == self.depth
     }
 
     pub fn next(self:*Block) ?Token {
