@@ -66,6 +66,7 @@ pub const Token = struct {
         BOOL,
         BUILTIN,
         TOKEN_PTR,
+        TYPE,
     };
 
     pub const IdentType = enum {
