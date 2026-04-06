@@ -14,10 +14,11 @@ pub const State = struct {
 };
 
 pub const Function = struct {
-    code:[]*Token,
-    name:[]u8,
+    code:[]Token,
+    depth:usize = undefined,
+    name:?[]u8 = null, //only non-null briefly *during* finalizing stage for internal tracking, after used
     source:[]u8 = undefined,
-    return_template:*Token,
+    return_template:Token,
     params:[]Param,
 
     pub const Param = struct {
