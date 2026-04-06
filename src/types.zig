@@ -258,7 +258,7 @@ pub const Token = struct {
             false;
     }
 
-    pub fn is_ident_type(self:*Token, check:Token.IdentType) bool {
+    pub fn is_ident(self:*Token, check:Token.IdentType) bool {
         if (self.type != .IDENT) return false;
         return self.type_info.ident.? == check;
     }
