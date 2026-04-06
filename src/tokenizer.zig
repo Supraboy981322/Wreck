@@ -310,7 +310,7 @@ pub const Tokenizer = struct {
                 self.expected_type = .INVALID;
                 return value;
             } else {
-                defer pre.free(self.alloc);
+                //defer pre.free(self.alloc);
 
                 var identifier = self.res.pop().?;
                 try self.populate_ident(&identifier);
