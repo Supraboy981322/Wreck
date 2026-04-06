@@ -96,6 +96,7 @@ pub const Token = struct {
         @"and", @"or", @"xor",
         @"fn",
         @"let", @"set",
+        @"return",
     };
 
     pub const Errors = error {

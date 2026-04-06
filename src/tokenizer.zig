@@ -209,6 +209,9 @@ pub const Tokenizer = struct {
             Token.Keyword, thing
         ) orelse return Error.INVALID;
 
+        if (keyword == .@"return")
+            self.expected_type = .VALUE;
+
         return .{
             .raw = try self.alloc.dupe(u8, thing),
             .type = .KEYWORD,
@@ -255,12 +258,26 @@ pub const Tokenizer = struct {
         }
         if (self.expected_type == .IDENT) {
 
+            var last_added = self.res.pop().?;
+            var aux:?Token = null;
+            defer { if (aux) |*a| @constCast(a).free(self.alloc); }
+            if (last_added.type == .FN) {
+                aux = last_added;
+                last_added = self.res.pop().?;
+            }
+
             const matched = std.meta.stringToEnum(
-                Token.IdentType, self.res.pop().?.raw
-            ) orelse unreachable;
+                Token.IdentType, last_added.raw
+            ) orelse {
+                try self.res.append(self.alloc, last_added);
+                try self.unexpected(null);
+                unreachable;
+            };
+
+            const name = if (aux) |a| a.raw else self.mem.items;
 
             const new:Token = .{
-                .raw = try self.alloc.dupe(u8, self.mem.items),
+                .raw = try self.alloc.dupe(u8, name),
                 .type = .IDENT,
 
                 .line_number = self.line_num,
@@ -277,14 +294,26 @@ pub const Tokenizer = struct {
             return new;
         } else if (self.expected_type == .VALUE) {
             //remove the symbol before
-            var symbol = self.res.pop().?;
-            defer symbol.free(self.alloc);
+            var pre = self.res.pop().?;
+            if (pre.is_oneof_keywords(
+                &globs.keyword_sets_following_type.immediately
+            )) {
+                var value = try self.new_token(.VALUE, null);
+                try self.populate_ident(&value);
 
-            var identifier = self.res.pop().?;
-            try self.populate_ident(&identifier);
-            self.expected_type = .INVALID;
+                try self.res.append(self.alloc, pre);
 
-            return identifier;
+                self.expected_type = .INVALID;
+                return value;
+            } else {
+                defer pre.free(self.alloc);
+
+                var identifier = self.res.pop().?;
+                try self.populate_ident(&identifier);
+                self.expected_type = .INVALID;
+
+                return identifier;
+            }
         } else for (self.known_idents.items) |*ident| {
             if (std.mem.eql(u8, ident.raw, self.mem.items)) {
                 return try @constCast(ident).own(self.alloc);
@@ -296,7 +325,11 @@ pub const Tokenizer = struct {
     }
 
     fn populate_ident(self:*Tokenizer, ident:*Token) !void {
-        const value = self.mem.items;
+        const value =
+            if (ident.type == .VALUE)
+                ident.raw
+            else
+                self.mem.items;
         if (value.len < 1) return Error.INVALID;
 
         const is_num = for (value) |b| {
@@ -352,7 +385,8 @@ pub const Tokenizer = struct {
         else
             null;
 
-        try self.known_idents.append(self.alloc, tracked);
+        if (ident.type != .VALUE) 
+            try self.known_idents.append(self.alloc, tracked);
     }
 
     pub fn do(self:*Tokenizer) !Tokenized {
