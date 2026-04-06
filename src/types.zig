@@ -14,8 +14,14 @@ pub const State = struct {
 };
 
 pub const Function = struct {
-    name:[]u8,
-    content:[]Token,
+    code:[]*Token,
+    source:[]u8,
+    return_template:*Token,
+    params:[]struct {
+        name:[]u8,
+        type:Token.ValueType,
+        value:?*Token,
+    },
 };
 
 pub const Tokenized = struct {
@@ -46,6 +52,8 @@ pub const Token = struct {
         string:?[]u8 = null,
         ptr:?*Token = null,
     } = .{},
+
+    function:?Function = null,
 
     pub const Type = enum {
         INVALID,
