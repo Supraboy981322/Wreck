@@ -409,17 +409,35 @@ pub const Tokenizer = struct {
                 )) self.expected_type = .IDENT;
 
                 continue :loop;
-            } else if (!self.is_string()) continue :loop;
+            } else
+                if (!self.is_string())
+                    continue :loop;
 
             switch (b) {
                 '(', ')' => if (self.mem.items.len > 0 and b == '(' and !self.is_keyword()) {
                     if (self.thing_type) |_| {} else {
                         self.thing_type = .LOCAL;
                     }
+
+                    const pre = self.res.pop();
+                    if (pre) |p| {
+                        try self.res.append(self.alloc, p);
+                    }
+
                     const func = try self.new_token(.FN, null);
                     self.thing_type = null;
                     try self.res.append(self.alloc, func);
-                    if (!try self.get_args()) {
+                    
+                    const pre_is_fn_declaration =
+                        if (pre) |*p|
+                            @constCast(p).is_keyword(.@"fn")
+                        else
+                            false;
+
+                    if (pre_is_fn_declaration) {
+                        std.debug.print("TODO: function declaration params", .{}); 
+                        while (self.next() != null and self.cur != ')') {}
+                    } else if (!try self.get_args()) {
                         try stderr.print("\x1b[5;3;1;33mfailed to get args\x1b[0m\n", .{});
                         try self.unexpected(null);
                     }
