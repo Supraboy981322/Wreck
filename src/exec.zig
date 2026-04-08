@@ -3,6 +3,7 @@ const globs = @import("globs.zig");
 const tokenizer = @import("tokenizer.zig");
 const evaluator = @import("evaluator.zig");
 const types = @import("types.zig");
+const hlp = @import("helpers.zig");
 
 const dupes = globs.dupe_keywords;
 
@@ -11,6 +12,7 @@ const stdout = globs.stdout;
 const Token = tokenizer.Token;
 const Keyword = Token.Keyword;
 const conditional = evaluator.conditional;
+const TokenIterator = hlp.TokenIterator;
 const ThingInNamespace = types.ThingInNamespace;
 
 const Tokenized = types.Tokenized;
@@ -23,19 +25,15 @@ pub const Exec = struct {
 
     known_idents:std.StringHashMap(ThingInNamespace),
 
-    pub fn init(tokens: Tokenized, source:?[]u8, owned_alloc:std.mem.Allocator) !Exec {
-        //var arena = std.heap.ArenaAllocator.init(owned_alloc);//std.heap.page_allocator);
-        //const alloc = arena.allocator();
-        var foo =  Exec{
-            .in = undefined,
+    pub fn init(tokens: Tokenized, source:?[]u8, _:std.mem.Allocator) !Exec {
+        _ = tokens.arena;
+        return .{
+            .in = tokens.tokens,
             .source = source,
-            .alloc = owned_alloc,
+            .alloc = tokens.alloc.*,
             .conditional_res = null,
-            .known_idents = undefined,
+            .known_idents = tokens.namespace,
         };
-        foo.in = tokens.tokens; //try tokenizer.dupe(foo.alloc, tokens.tokens);
-        foo.known_idents = std.StringHashMap(ThingInNamespace).init(foo.alloc);
-        return foo;
     }
 
     pub fn deinit(self:*Exec) void {
@@ -321,6 +319,7 @@ pub const Block = struct {
     cur:Token = undefined,
     alloc:std.mem.Allocator,
     depth:usize,
+    itr:TokenIterator,
 
     known_idents:std.StringHashMap(ThingInNamespace),
 
@@ -335,14 +334,15 @@ pub const Block = struct {
             .alloc = alloc,
             .depth = parent_depth + 1,
             .known_idents = undefined,
+            .itr = TokenIterator.init(code, .{ .use_void = false }),
         };
         block.known_idents = try parent_idents.cloneWithAllocator(block.alloc);
         return block;
     }
 
     pub fn deinit(self:*Block) void {
-        for (self.code) |*token|
-            @constCast(token).free(self.alloc);
+        //for (self.code) |*token|
+        //    @constCast(token).free(self.alloc);
         var itr = self.known_idents.iterator();
         while (itr.next()) |ident| if (ident.value_ptr.variable) |*v|
             if (v.depth == self.depth) {
@@ -355,23 +355,20 @@ pub const Block = struct {
     }
 
     pub fn next(self:*Block) ?Token {
-        self.pos = if (self.pos) |p| p + 1 else 0;
-        if (self.code.len <= self.pos.?) return null;
-        self.cur = self.code[self.pos.?];
-        return self.cur;
+        return
+            self.itr.next() catch |e|
+                @panic(@errorName(e));
     }
 
     pub fn back(self:*Block) ?Token {
-        self.pos = if (self.pos) |p| p - 1 else 0;
-        if (self.pos.? < 1) return null;
-        self.cur = self.code[self.pos.?];
-        return self.cur;
+        return self.itr.back();
     }
 
     pub fn peek(self:*Block) ?Token {
-        const p = if (self.pos) |p| p + 1 else 0;
-        if (self.code.len <= p) return null;
-        return self.code[p];
+        return self.itr.peek();
+        //const p = if (self.pos) |p| p + 1 else 0;
+        //if (self.code.len <= p) return null;
+        //return self.code[p];
     }
 
     pub fn skipN(self:*Block, n:usize) void {

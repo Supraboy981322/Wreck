@@ -1,6 +1,10 @@
 const std = @import("std");
 const globs = @import("globs.zig");
+const hlp = @import("helpers.zig");
 
+const TokenIterator = hlp.TokenIterator;
+
+// TODO: remove this
 pub const State = struct {
     idents:[]*Token,
 

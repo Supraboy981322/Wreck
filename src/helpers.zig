@@ -89,4 +89,10 @@ pub const TokenIterator = struct {
             return self.void_or_null();
         return self.in[self.pos.? - 1];
     }
+
+    pub fn peek(self:*TokenIterator) ?Token {
+        if (!self.can_seek(.NEXT))
+            return self.void_or_null();
+        return self.in[self.pos.? + 1];
+    }
 };
