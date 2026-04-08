@@ -178,6 +178,10 @@ pub const Token = struct {
         bool:?bool = null,
         string:?[]u8 = null,
         ptr:?*Token = null,
+
+        //set to 'false' for undefined
+        //  (interpreter will avoid reading value (errors on attempt instead))
+        is_defined:bool = true,
     } = .{},
 
     //token types
@@ -216,6 +220,9 @@ pub const Token = struct {
         BUILTIN,
         LOCAL,
         EXTERNAL,
+
+        // TODO: module system
+        PRIVATE,
     };
 
     //symbols
@@ -235,6 +242,31 @@ pub const Token = struct {
 
         //for easier parsing
         @";",
+
+        // TODO: everything that follows this comment
+        
+        //basic bitwise
+        @"&", @"|", @"^", @">>", @"<<",
+
+        //bitwise assignment
+        @"&=", @"|=", @"^=", @"<<=", @">>=", @"<<|=", @">>|=",
+
+        //basic operators
+        @"*", @"+",  @"/", @"%",
+
+        //basic assignment
+        @"-=", @"+=", @"*=", @"/=", @"%=",
+        
+        //basic symbols 
+        @"[", @"]",
+
+        //non-standard
+        @"~=", //loose equality (ignores type; eg: "1" ~= 1 would be true)
+        @"#=", //contains (lists, strings, flags)
+        @"++", //join (lists, strings, flags)
+        @"**", // TODO: decide between glob, splat, or expand
+        @"..", //range
+        @"...", // TODO: decide between splat, and expand
     };
     
     //keywords
@@ -245,9 +277,23 @@ pub const Token = struct {
 
         //conditional operators
         @"and", @"or", @"xor",
-        @"fn",
-        @"let", @"set",
-        @"return",
+
+        //identifier keywords
+        @"fn", @"let", @"set",
+        
+        
+        // TODO: everything after this comment
+        //dupe for 'and' and 'or'
+        @"&&", @"||",
+        
+        //control flow
+        @"return", //only affects inner-most (nesting planned) function
+        @"break",  //only affects inner-most loop
+        @"escape", //for escaping arbitrary code blocks
+        
+        //misc
+        @"goto",   //does this make you scared? (good)
+        @"switch", //I have some nice syntax in mind for when I get to this
     };
 
     pub const Errors = error {
