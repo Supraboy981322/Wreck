@@ -568,6 +568,16 @@ pub const Tokenizer = struct {
                         'b' => '\x08',
                         'f' => '\x0c',
                         'v' => '\x0b',
+                        'x' => parser.strings.hex(&self.pos.?, @constCast(self.input)),
+
+                        //string interpolation
+                        '(' => b: {
+                            //these are parsed at runtime
+                            //   TODO: there's a better way to do this (how does Wren do it?)
+                            try self.mem.append(self.alloc, '\\');
+                            break :b self.cur;
+                        },
+
                         else => self.cur,
                     }
                 );
