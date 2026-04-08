@@ -18,24 +18,36 @@ pub const State = struct {
 };
 
 pub const Function = struct {
+    //tokenized code 
     code:[]Token,
+    //depth (nested; determines the scope, 0 for global scope)
     depth:usize = undefined,
+    //name of the function
     name:?[]u8 = null, //only non-null briefly *during* finalizing stage for internal tracking, after used
+    //source code of function (for debug mode) TODO: debug mode
     source:[]u8 = undefined,
+    //template token for return
     return_template:Token,
+    //parameter slots
     params:[]Param,
 
+    //param type
     pub const Param = struct {
+        //name (ident)
         name:[]u8,
+        //type of value
         type:Token.ValueType,
+        //value (set during runtime)
         value:?*Token,
         
+        //helper to free a param
         pub fn free(self:*Param, alloc:std.mem.Allocator) void {
             alloc.free(self.name);
             if (self.value) |v|
                 @constCast(v).free(alloc);
         }
 
+        //helper to create an owned (duped) param
         pub fn own(self:*Param, alloc:std.mem.Allocator) !Param {
             return .{
                 .name = try alloc.dupe(u8, self.name),
@@ -49,6 +61,7 @@ pub const Function = struct {
         }
     };
 
+    //helper to free an entire function
     pub fn free(self:*Function, alloc:std.mem.Allocator) void {
         if (self.name) |n| alloc.free(n);
 
@@ -59,6 +72,7 @@ pub const Function = struct {
             @constCast(p).free(alloc);
     }
 
+    // TODO: remove this
     pub fn own_and_free(self:*Function, alloc:std.mem.Allocator) !Function {
         defer self.free(alloc);
 
@@ -82,23 +96,32 @@ pub const Function = struct {
 };
 
 pub const Tokenized = struct {
+    //resulting (parsed and finalized) tokens
     tokens:[]Token,
-    global_namespace:std.StringHashMap(ThingInNamespace),
-    alloc:std.mem.Allocator,
-    arena:std.heap.ArenaAllocator,
 
+    //itr:TokenIterator,
+    
+    //namespace
+    namespace:std.StringHashMap(ThingInNamespace),
+
+    // TODO: can these be moved?
+    alloc:*std.mem.Allocator,
+    arena:*std.heap.ArenaAllocator,
+
+    //helper free the result of tokenization
     pub fn free(self:*Tokenized, alloc:std.mem.Allocator) void {
-        for (self.tokens) |*token|
-            @constCast(token).free(alloc);
-        var itr = self.global_namespace.iterator();
-        while (itr.next()) |kv| {
-            alloc.free(kv.key_ptr.*);
-            const value = kv.value_ptr.*;
-            if (value.function) |*f|
-                @constCast(f).free(alloc);
-            if (value.variable) |*v|
-                @constCast(v).free(alloc);
-        }
+        _ = .{ self, alloc };
+        //for (self.tokens) |*token|
+        //    @constCast(token).free(alloc);
+        //var itr = self.namespace.iterator();
+        //while (itr.next()) |kv| {
+        //    alloc.free(kv.key_ptr.*);
+        //    const value = kv.value_ptr.*;
+        //    if (value.function) |*f|
+        //        @constCast(f).free(alloc);
+        //    if (value.variable) |*v|
+        //        @constCast(v).free(alloc);
+        //}
     }
 };
 
@@ -106,12 +129,14 @@ pub const ThingInNamespace = struct {
     function:?Function = null,
     variable:?Token = null,
 
+    //helper to check if a namespace entry is a function
     pub fn is_fn(self:*ThingInNamespace) bool {
         if (self.function != null and self.variable != null)
             @panic("ThingInNamespace appears to be both a function and a variable");
         return self.function != null;
     }
 
+    //helper to check if a namespace entry is a variable
     pub fn is_var(self:*ThingInNamespace) bool {
         if (self.function != null and self.variable != null)
             @panic("ThingInNamespace appears to be both a variable and a function");
@@ -120,12 +145,24 @@ pub const ThingInNamespace = struct {
 };
 
 pub const Token = struct {
+    //literal in source code (ident name, string literal, unparsed number, etc.)
     raw: []u8,
+
+    //type of the token
     type: Token.Type,
+
+    //how many blocks deep the token is
+    //  (will be used for garbage collection, once I start working on that)
     depth:usize = undefined,
+
+    //for finding a token in the source code
     line_number:usize,
     line_pos:usize,
 
+    //for when I get around to cleaning-up the memory handling
+    free_called:bool = false,
+
+    //holds the type of the token
     type_info:struct {
         value:?Token.ValueType = null,
         thing:?Token.ThingType = null,
@@ -134,41 +171,46 @@ pub const Token = struct {
         ident:?Token.IdentType = null,
     } = .{},
 
+    //holds the value of a token (variable, number, bool, etc.)
     value:struct {
+        //set all to 'null' to have null value
         num:?isize = null,
         bool:?bool = null,
         string:?[]u8 = null,
         ptr:?*Token = null,
     } = .{},
 
+    //token types
     pub const Type = enum {
-        INVALID,
-        FN,
-        VALUE,
-        SYMBOL,
-        KEYWORD,
-        IDENT,
+        INVALID, //used internally, TODO: parse result for these before interpreting
+        FN,      //functions
+        VALUE,   //values (literals)
+        SYMBOL,  //symbols (eg: '~=')
+        KEYWORD, //keywords (eg: 'goto')
+        IDENT,   //identifier (vairables)
     };
 
     pub const ValueType = enum {
-        UNKNOWN,
-        VOID,
-        NUM,
-        FLAG,
-        STRING,
-        COMMENT,
-        BOOL,
-        BUILTIN,
-        TOKEN_PTR,
-        TYPE,
+        UNKNOWN,   //used internally, TODO: parse result for these before interpreting
+        VOID,      //void (empty) token
+        NUM,       //number TODO: number typess (eg: float, u8, u32, u64, i8, i32, i64)
+        FLAG,      //flags ( eg: [[ foo bar ]] )
+        STRING,    //string
+        COMMENT,   //comment (used briefly by tokenizer, but never present in resulting tokens)
+        BOOL,      //boolean
+        BUILTIN,   //builtin (likely a type or something like #pipe)
+        TOKEN_PTR, //might remove this TODO: pointers
+        TYPE,      // TODO: types
     };
 
+    //types of identifiers
     pub const IdentType = enum {
-        @"fn",
-        @"let",
-        @"set",
+        @"fn",  //function (declaration should be parsed out of final tokens)
+        @"let", //variable
+        @"set", //constant
     };
 
+    //general scope-related stuff
     pub const ThingType = enum {
         SHELL_CMD,
         BUILTIN,
@@ -176,18 +218,32 @@ pub const Token = struct {
         EXTERNAL,
     };
 
+    //symbols
     pub const Symbol = enum {
+        //braces
         @"{",   @"}",
+
+        //parentheses
         @"(",   @")",
+
+        //angle brackets
         @"<",   @">",
+
+        //variations of equal
         @"=",   @"==",
         @">=",  @"<=",
+
+        //for easier parsing
         @";",
     };
     
+    //keywords
     pub const Keyword = enum {
+        //conditionals
         @"?",   @"if",
         @"?!",  @"else",
+
+        //conditional operators
         @"and", @"or", @"xor",
         @"fn",
         @"let", @"set",
@@ -199,6 +255,7 @@ pub const Token = struct {
         InvalidOperation
     };
 
+    // TODO: possibly remove this
     pub fn resolve_var(self:*Token) !*Token {
         if (self.type != .IDENT)
             return Token.Errors.InvalidOperation;
@@ -208,6 +265,7 @@ pub const Token = struct {
             return Token.Errors.InvalidOperation;
     }
 
+    // TODO: possibly remove this
     pub fn set_value(self:*Token, comptime T:type, value:T) !void {
         if (self.type != .IDENT)
             return Token.Errors.InvalidOperation;
@@ -232,21 +290,25 @@ pub const Token = struct {
         }
     }
 
+    //helper to check if a value type matches
     pub fn is_value_type(self:*Token, value_type:@This().ValueType) bool {
         if (self.type != .VALUE) return false;
         return self.type_info.value.? == value_type;
     }
 
+    //helper to check if a token is a specific symbol
     pub fn is_symbol(self:*Token, check:Token.Symbol) bool {
         if (self.type != .SYMBOL) return false;
         return self.type_info.symbol.? == check;
     }
 
+    //helper to check if a token is a specific keyword
     pub fn is_keyword(self:*Token, check:Token.Keyword) bool {
         if (self.type != .KEYWORD) return false;
         return self.type_info.keyword.? == check;
     }
 
+    //helper to check if a token is one of a set of specific keywords
     pub fn is_oneof_keywords(self:*Token, check:[]Token.Keyword) bool {
         if (self.type != .KEYWORD) return false;
         for (check) |thing|
@@ -254,6 +316,7 @@ pub const Token = struct {
         return false;
     }
 
+    //helper to check if a token is one of a set of specific symbols
     pub fn is_oneof_symbols(self:*Token, check:[]Token.Symbol) bool {
         if (self.type != .SYMBOL) return false;
         return for (check) |thing| {
@@ -262,11 +325,13 @@ pub const Token = struct {
             false;
     }
 
+    //helper to check if a token is a specific ident type
     pub fn is_ident(self:*Token, check:Token.IdentType) bool {
         if (self.type != .IDENT) return false;
         return self.type_info.ident.? == check;
     }
 
+    //helper get an owned (duped) token from current
     pub fn own(self:*Token, alloc:std.mem.Allocator) !Token {
         return .{
             .raw = try alloc.dupe(u8, self.raw),
@@ -296,6 +361,8 @@ pub const Token = struct {
         };
     }
 
+    //helper to expand flag type value (eg: 'foo' to '--foo')
+    //  TODO: syntax for flipping default bahavior
     pub fn expand_flag(self:*Token, alloc:std.mem.Allocator) ![]u8 {
         if (!self.is_value_type(.FLAG)) return Token.Errors.IsNotFlag;
         
@@ -304,23 +371,29 @@ pub const Token = struct {
 
         try res.append(alloc, '-');
         if (self.raw.len > 1) try res.append(alloc, '-');
-        try res.appendSlice(alloc, self.raw);
+        try res.appendSlice(alloc, try alloc.dupe(u8, self.raw));
 
         return try res.toOwnedSlice(alloc);
     }
 
+    //helper to free a token
     pub fn free(self:*Token, alloc:std.mem.Allocator) void {
+        if (self.free_called) return; //just in case
+        defer self.free_called = true;
+
         if (!self.is_value_type(.VOID))
             alloc.free(self.raw);
         if (self.value.string) |str|
             alloc.free(str);
     }
 
+    //helper to print a token
     pub fn print(self:*Token) !void {
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer _ = arena.deinit();
         const alloc = arena.allocator();
 
+        //result is stored in an array_list
         var fmted = try std.ArrayList(u8).initCapacity(alloc, 0);
         defer _ = fmted.deinit(alloc);
 

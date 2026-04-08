@@ -30,9 +30,12 @@ fn main() bool {
   return true;
 }
 
+#)
+
 let foo = "bar";
 $printf("%s\n" foo);
 
+#( BUG: anything past this point segfaults) 
 foo = "baz";
 $printf("%s\n" foo);
 
