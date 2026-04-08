@@ -22,6 +22,8 @@ if (1 == 0) {
   $printf("1 ISN'T GREATER THAN 0?\n");
 }
 
+#(
+
 #( TODO: functions )
 
 fn main() bool {
