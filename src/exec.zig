@@ -242,10 +242,14 @@ pub const Exec = struct {
     }
     
     fn string_args(self:*Exec, cmd:Token, args:[]Token, block:Block) ![][]const u8 {
-        var argv = try std.ArrayList([]const u8).initCapacity(self.alloc, 0);
+        var arena = std.heap.ArenaAllocator.init(self.alloc);
+        const alloc = arena.allocator();
+        var argv = try std.ArrayList([]const u8).initCapacity(alloc, 0);
         defer {
             for (argv.items) |a| self.alloc.free(a);
             _ = argv.deinit(self.alloc);
+            _ = arena.reset(.free_all);
+            _ = arena.deinit();
         }
         try argv.append(self.alloc, try self.alloc.dupe(u8, cmd.raw));
         for (args) |*a| {
@@ -253,11 +257,11 @@ pub const Exec = struct {
                 switch (a.type_info.value.?) {
 
                     .FLAG => {
-                        try argv.append(self.alloc, try a.expand_flag(self.alloc));
+                        try argv.append(alloc, try a.expand_flag(self.alloc));
                     },
 
                     else => {
-                        try argv.append(self.alloc, try self.alloc.dupe(u8, a.raw));
+                        try argv.append(alloc, try self.alloc.dupe(u8, a.raw));
                     },
                 }
             } else if (a.type == .IDENT) {
@@ -266,8 +270,10 @@ pub const Exec = struct {
                     try self.unexpected(a.*, null);
                     unreachable;
                 };
-                if (og.variable) |*v| // TODO: non strings
-                    try argv.append(self.alloc, v.value.string.?)
+                if (og.variable) |*v| switch (v.type_info.value.?) {
+                    .STRING => try argv.append(alloc, try self.alloc.dupe(u8, v.value.string.?)),
+                    else => {} // TODO: non strings
+                }
                 else
                     @panic("TODO: string_args(...) value from function call");
             } else {
@@ -281,7 +287,7 @@ pub const Exec = struct {
 
     fn run(self:*Exec, cmd:Token, args:[]Token, block:Block) !void {
         const argv = try self.string_args(cmd, args, block);
-        defer for (argv) |a| self.alloc.free(a);
+        //defer for (argv) |a| self.alloc.free(a);
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
         defer _ = gpa.deinit();
         var child = std.process.Child{
