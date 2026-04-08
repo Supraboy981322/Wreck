@@ -43,6 +43,12 @@ pub const Tokenizer = struct {
     res:std.ArrayList(Token),
     known_idents:std.ArrayList(Token),
 
+    finalizer:?struct {
+        mem:std.ArrayList(Token),
+        res:std.ArrayList(Token),
+        alloc:std.mem.Allocator,
+    } = null,
+
     pub fn init(in:[]const u8, alloc:std.mem.Allocator) !Tokenizer {
         const offset = if (in[0] == '#' and in[1] == '!') b: {
             var i:usize = 0;
@@ -70,6 +76,10 @@ pub const Tokenizer = struct {
         _ = self.mem.deinit(self.alloc);
         _ = self.res.deinit(self.alloc);
         _ = self.known_idents.deinit(self.alloc);
+        if (self.finalizer) |*finalizer| {
+            @constCast(finalizer).mem.deinit(finalizer.alloc);
+            @constCast(finalizer).mem.deinit(finalizer.alloc);
+        }
     }
 
     pub fn unexpected(self:*Tokenizer, thing:?[]u8) !void {
@@ -737,97 +747,72 @@ pub const Tokenizer = struct {
     }
 
     pub fn finalize(self:*Tokenizer) !Tokenized {
-        var arena = std.heap.ArenaAllocator.init(self.alloc);
-        defer {
-            _ = arena.reset(.free_all);
-            _ = arena.deinit();
-        }
-        const process_alloc = arena.allocator();
-
+        defer self.free(self.res.items);
         var finalized:Tokenized = .{
-            .tokens = undefined,
-            .global_namespace = undefined,
-            .alloc = undefined,
-            .arena = std.heap.ArenaAllocator.init(self.alloc),
+            .tokens = try dupe(self.alloc, self.res.items),
+            .namespace = std.StringHashMap(ThingInNamespace).init(self.alloc),
+            .alloc = &self.alloc,
+            //.itr = TokenIterator.init(self.res.toOwnedSlice(
+            .arena = undefined,
         };
-        finalized.alloc = finalized.arena.allocator();
-        finalized.global_namespace = std.StringHashMap(ThingInNamespace).init(finalized.alloc);
 
-        var itr = TokenIterator.init(self.res.items, .{ .use_void = true });
-
-        var current_fn_mem:?Function = null;
-        var mem = try std.ArrayList(Token).initCapacity(process_alloc, 0);
-        var res = try std.ArrayList(Token).initCapacity(process_alloc, 0);
-        var cur_fn_pos:struct {
-            line:?usize = null,
-            pos:?usize = null,
-        } = .{};
-
-        var depth:usize = 0;
-
-        while (try itr.next()) |*token| {
-            if (depth == 0) if (@constCast(token).is_ident(.@"fn")) {
-                if (current_fn_mem) |_|
-                    @panic("function mem not cleared");
-                defer depth += 1;
-                cur_fn_pos = .{
-                    .line = token.line_number,
-                    .pos = token.line_pos,
-                };
-                const fn_params = b: {
-                    var blk_mem = try std.ArrayList(Param).initCapacity(process_alloc, 0);
-                    defer {
-                        _ = blk_mem.deinit(process_alloc);
-                        _ = itr.back();
-                    }
-                    while (try itr.next() != null and !itr.cur.is_symbol(.@"{")) {
-                        const param:Param = .{
-                            .name = try finalized.alloc.dupe(u8, itr.cur.raw),
-                            .type = itr.cur.type_info.value orelse .VOID,
-                            .value = null,
-                        };
-                        try blk_mem.append(process_alloc, param);
-                    }
-                    break :b try blk_mem.toOwnedSlice(process_alloc);
-                };
-                
-                current_fn_mem = .{
-                    .name = try finalized.alloc.dupe(u8, token.raw),
-                    .code = undefined,
-                    .params = fn_params,
-                    .return_template = globs.void_token,
-                };
-            } else {
-
-                // TODO: other globals
-
-                try res.append(
-                    process_alloc,
-                    try @constCast(token).own(finalized.alloc),
-                );
-            } else {
-                if (mem.items.len > 0) {
-                    defer _ = mem.clearAndFree(process_alloc);
-                    if (current_fn_mem) |*fn_mem| {
-                        defer current_fn_mem = null;
-                        fn_mem.code = mem.items;
-                        try finalized.global_namespace.put(
-                            fn_mem.name.?,
-                            .{ .function = current_fn_mem, },
-                        );
-                    }
-                } else {
-                    try mem.append(
-                        process_alloc,
-                        try @constCast(token).own(finalized.alloc)
-                    );
-                }
-            }
-        }
+        //self.finalizer = .{
+        //    .alloc = finalized.alloc.*,
+        //    .mem = try std.ArrayList(Token).initCapacity(finalized.alloc.*, 0),
+        //    .res = try std.ArrayList(Token).initCapacity(finalized.alloc.*, 0),
+        //};
+        finalized.arena = undefined;
         
-        finalized.tokens = res.items;
-
         return finalized;
+        
+        //for (self.res.items) |*tok| try @constCast(tok).print();
+
+        //var itr = TokenIterator.init(try self.res.toOwnedSlice(finalized.alloc.*), .{});
+        //var depth:usize = 0;
+        //while (try itr.next()) |token| {
+        //    if (depth == 0) switch (token.type) {
+        //        .IDENT => {
+        //            depth += 1;
+        //            while (try itr.next() != null and !itr.cur.is_symbol(.@"{")) {
+        //                // TODO: function params
+        //                //  try self.finalizer.mem.append(finalized.alloc, itr.cur);
+        //            }
+        //            inner_loop: while (try itr.next()) |*sub_tok| {
+        //                var tok = @constCast(sub_tok);
+        //                if (tok.is_symbol(.@"{")) {
+        //                    depth += 1;
+        //                    try self.finalizer.?.mem.append(finalized.alloc.*, try tok.own(finalized.alloc.*));
+        //                } else if (tok.is_symbol(.@"}")) {
+        //                    depth -= 1;
+        //                    try self.finalizer.?.mem.append(finalized.alloc.*, try tok.own(finalized.alloc.*));
+        //                } else
+        //                    try self.finalizer.?.mem.append(finalized.alloc.*, try tok.own(finalized.alloc.*));
+        //                if (depth == 0) break :inner_loop;
+        //            }
+        //            std.debug.print("foo\n", .{});
+        //            try finalized.namespace.put(try finalized.alloc.*.dupe(u8, token.raw), .{
+        //                .function = .{
+        //                    .code = try self.finalizer.?.mem.toOwnedSlice(finalized.alloc.*),
+        //                    .return_template = globs.void_token,
+        //                    .params = undefined,
+        //                }
+        //            });
+        //            std.debug.print("bar\n", .{});
+        //        },
+        //        else => @panic("TODO: depth == 0 switch (token.type) { else => @panic(...) }"),//try self.finalizer.res.append(finalized.alloc, token),
+        //    } else {
+        //        @panic("TODO: non-functions");
+        //    }
+        //}
+
+        //std.debug.print("baz\n", .{});
+        //defer std.debug.print("qux\n", .{});
+        //if (finalized.namespace.get("main")) |entry|
+        //    finalized.tokens = entry.function.?.code
+        //else
+        //    finalized.tokens = try self.finalizer.?.res.toOwnedSlice(finalized.alloc.*);
+
+        //return finalized;
     }
 };
 
