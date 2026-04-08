@@ -42,9 +42,10 @@ pub const Function = struct {
         
         //helper to free a param
         pub fn free(self:*Param, alloc:std.mem.Allocator) void {
-            alloc.free(self.name);
-            if (self.value) |v|
-                @constCast(v).free(alloc);
+            _ = .{ self, alloc };
+            //alloc.free(self.name);
+            //if (self.value) |v|
+            //    @constCast(v).free(alloc);
         }
 
         //helper to create an owned (duped) param
@@ -63,13 +64,14 @@ pub const Function = struct {
 
     //helper to free an entire function
     pub fn free(self:*Function, alloc:std.mem.Allocator) void {
-        if (self.name) |n| alloc.free(n);
+        _ = .{ self, alloc };
+        //if (self.name) |n| alloc.free(n);
 
-        for (self.code) |*t|
-            @constCast(t).free(alloc);
+        //for (self.code) |*t|
+        //    @constCast(t).free(alloc);
 
-        for (self.params) |*p|
-            @constCast(p).free(alloc);
+        //for (self.params) |*p|
+        //    @constCast(p).free(alloc);
     }
 
     // TODO: remove this
