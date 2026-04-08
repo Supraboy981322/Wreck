@@ -9,7 +9,10 @@ const stderr = globs.stderr;
 
 pub fn main() !void {
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{
+        .verbose_log = true,
+        .enable_memory_limit = true,
+    }){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
