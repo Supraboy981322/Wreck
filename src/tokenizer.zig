@@ -144,7 +144,6 @@ pub const Tokenizer = struct {
     fn add_if_mem(self:*Tokenizer) !void {
         if (self.mem.items.len > 0) {
             const tokenized:Token = self.new_who_knows_what() catch {
-                std.debug.print("Tokenizer.add_if_mem()\n", .{});
                 try self.unexpected(null);
                 unreachable;
             };
@@ -401,8 +400,7 @@ pub const Tokenizer = struct {
         else
             null;
 
-        std.debug.print("ident names: {s} and {s}\n", .{tracked.raw, ident.raw});
-        if (ident.type != .VALUE) 
+        if (ident.type != .VALUE)
             try self.known_idents.append(self.alloc, tracked);
     }
 
