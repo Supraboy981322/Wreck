@@ -726,7 +726,7 @@ pub const Tokenizer = struct {
     }
 
     pub fn free(self:*Tokenizer, tokens:[]Token) void {
-        for (tokens) |t| self.alloc.free(t.raw);
+        for (tokens) |*t| @constCast(t).free(self.alloc);
     }
 
     pub fn context_pass(self:*Tokenizer) !void {
@@ -739,7 +739,9 @@ pub const Tokenizer = struct {
                     else => .LOCAL,
                 };
                 if (token.type_info.thing != .LOCAL) {
-                    token.raw = token.raw[1..];
+                    const new_name = try self.alloc.dupe(u8, token.raw[1..]);
+                    self.alloc.free(token.raw);
+                    token.raw = new_name;
                 }
             },
             else => {}
@@ -824,5 +826,5 @@ pub const Tokenizer = struct {
 //}
 
 pub fn free(alloc:std.mem.Allocator, tokens:[]Token) void {
-    for (tokens) |t| alloc.free(t.raw);
+    for (tokens) |*t| @constCast(t).free(alloc);
 }

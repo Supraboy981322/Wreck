@@ -411,10 +411,11 @@ pub const Block = struct {
             tokenizer.free(self.alloc, mem.items);
             _ = mem.deinit(self.alloc);
         }
-        loop: while (self.next()) |*devilish_const_token| {
-            var token = @constCast(devilish_const_token);
-            if (!token.is_symbol(thing)) {
-                try mem.append(self.alloc, token.*);
+        loop: while (self.next()) |token| {
+            std.debug.print("collect(...)\n", .{});
+            try @constCast(&token).print();
+            if (!@constCast(&token).is_symbol(thing)) {
+                try mem.append(self.alloc, try @constCast(&token).own(self.alloc));
             } else
                 break :loop;
         }
