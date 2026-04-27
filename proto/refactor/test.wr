@@ -1,0 +1,9 @@
+#( TODO:
+    fn int main()
+    priv fn main() {
+ )
+
+fn main() {
+  #(let foo = "bar";)
+  $printf("foo%s" "bar");
+}
