@@ -266,7 +266,7 @@ pub const Exec = struct {
                 }
             } else if (a.type == .IDENT) {
                 var og = block.known_idents.get(a.raw) orelse {
-                    std.debug.print("Exec.string_args(...)\n", .{});
+                    //std.debug.print("Exec.string_args(...)\n", .{});
                     try self.unexpected(a.*, null);
                     unreachable;
                 };
@@ -277,7 +277,7 @@ pub const Exec = struct {
                 else
                     @panic("TODO: string_args(...) value from function call");
             } else {
-                std.debug.print("TODO string_args(): {s}\n", .{@tagName(a.type)});
+                //std.debug.print("TODO string_args(): {s}\n", .{@tagName(a.type)});
                 try @constCast(a).print();
                 unreachable;
             }
@@ -412,7 +412,7 @@ pub const Block = struct {
             _ = mem.deinit(self.alloc);
         }
         loop: while (self.next()) |token| {
-            std.debug.print("collect(...)\n", .{});
+            //std.debug.print("collect(...)\n", .{});
             try @constCast(&token).print();
             if (!@constCast(&token).is_symbol(thing)) {
                 try mem.append(self.alloc, try @constCast(&token).own(self.alloc));

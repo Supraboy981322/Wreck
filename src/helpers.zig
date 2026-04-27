@@ -6,7 +6,11 @@ pub fn is_num(b:u8) bool {
     return b >= '0' and b <= '9';
 }
 
-pub fn print_or_panic(comptime where:enum { OUT, ERR }, comptime fmt:[]const u8, stuff:anytype) void {
+pub fn print_or_panic(
+    comptime where:enum { OUT, ERR },
+    comptime fmt:[]const u8,
+    stuff:anytype
+) void {
     const place = switch (where) {
         .OUT => globs.stdout,
         .ERR => globs.stderr,
