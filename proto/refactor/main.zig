@@ -4,15 +4,8 @@ const Tokenizer = @import("tokenizer.zig").Tokenizer;
 
 const ByteItr = hlp.ByteItr;
 
-pub fn main() !void {
-
-    var gpa = std.heap.GeneralPurposeAllocator(.{
-        .retain_metadata = true,
-        .never_unmap = true,
-        .verbose_log = false,
-    }){};
-    defer _ = gpa.deinit();
-    var alloc = gpa.allocator();
+pub fn main(init:std.process.Init) !void {
+    var alloc = init.gpa;
 
     const src:[]u8 = @constCast(@embedFile("test.wr"));
     var tokenizer = try Tokenizer.init(&alloc, src);
