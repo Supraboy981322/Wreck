@@ -94,7 +94,7 @@ pub const Tokenizer = struct {
                     }
                     const block = try self.recurse(label_name);
                     const as_token:Token = .{
-                        .type = .{ .label = block }
+                        .type = .{ .block = block }
                     };
                     if (label_name) |label|
                         try res.to_namespace(label, as_token)

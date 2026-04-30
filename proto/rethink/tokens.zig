@@ -42,10 +42,12 @@ pub const Block = struct {
                     _ = Builtins.run(ident, passed_args) catch |e| {
                         if (e == error.InvalidBuiltin) {
                             if (self.namespace.get(ident)) |*func| {
-                                if (func.type != .label)
+                                if (func.type != .block)
                                     return error.NotFunction
+                                else if (func.type.block.name) |_|
+                                    _ = try @constCast(func).type.block.run(passed_args)
                                 else
-                                    _ = try @constCast(func).type.label.run(passed_args);
+                                    return error.NotFunction;
                             } else {
                                 std.debug.print("\n|{s}|\n", .{ident});
                                 return error.UnknownIdentifier;
@@ -54,7 +56,14 @@ pub const Block = struct {
                     };
                     
                 },
-                else => unreachable,
+                .block => |*block| {
+                    var blk = block.*;
+                    var itr = self.namespace.iterator();
+                    while (itr.next()) |entry|
+                        try blk.to_namespace(@constCast(entry.key_ptr.*), entry.value_ptr.*);
+                    _ = try blk.run(@constCast(&[_]Token{}));
+                },
+                else => @panic(@tagName(tok.type)), //Block.run()
             }
         }
         return null;
@@ -98,7 +107,7 @@ pub const Block = struct {
                     }
                 },
                 .ident => unreachable,
-                .label => @panic("TODO: nested function calls"),
+                .block => @panic("TODO: nested function calls"),
                 else => {},
             }
             try mem.append(self.alloc, tok);
@@ -164,7 +173,7 @@ pub const Token = union(enum) {
 
     pub const TokenType = union(enum) {
         string:[]u8,
-        label:Block, // TODO: probably should rename this to 'block'
+        block:Block,
         ident:[]u8,
         symbol:Symbols,
         variable:Variable,

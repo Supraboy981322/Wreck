@@ -17,15 +17,15 @@ pub const Interpreter = struct {
 
     pub fn do(_:*Interpreter, block:Block) !?Token {
         if (block.namespace.get("main")) |*entry| {
-            if (entry.type == .label) {
+            if (entry.type == .block) {
                 var itr = block.namespace.iterator();
                 while (itr.next()) |name_entry| {
-                    try @constCast(entry).type.label.to_namespace(
+                    try @constCast(entry).type.block.to_namespace(
                         @constCast(name_entry.key_ptr.*),
                         name_entry.value_ptr.*
                     );
                 }
-                _ = try @constCast(entry).type.label.run(@constCast(&[_]Token{}));
+                _ = try @constCast(entry).type.block.run(@constCast(&[_]Token{}));
             } else
                 @panic("main not a label");
         } else
