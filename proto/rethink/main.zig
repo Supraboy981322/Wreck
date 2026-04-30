@@ -338,6 +338,9 @@ pub fn print(args:[]Token) !void {
     for (args) |a| {
         switch (a.type) {
             .string => |str| std.debug.print("{s} ", .{str}),
+            .number => |num| switch (num) {
+                inline .uint, .int => |n| std.debug.print("{d} ", .{n}),
+            },
             else => unreachable,
         }
     }
