@@ -74,15 +74,7 @@ pub const Tokenizer = struct {
             if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
                 if (mem.items.len > 0) {
                     const raw = try mem.toOwnedSlice(alloc);
-                    try res.code.append(self.alloc, .{ .type =
-                        if (raw[0] == '"' and raw[raw.len-1] == '"') .{
-                            .string = raw[1..raw.len-1],
-                        } else if (raw[0] == '$') .{
-                            .variable = Variable.make(raw[1..]),
-                        } else .{
-                            .ident = raw,
-                        }
-                    });
+                    try res.code.append(self.alloc, .make(raw));
                 }
 
                 if (Token.byte_looks_like_symbol(b)) {
@@ -111,7 +103,7 @@ pub const Tokenizer = struct {
                 },
                 '}' => return res,
                 ':' => {
-                    if (label_name != null)
+                    if (label_name) |_|
                         @panic("missplaced colon");
                     label_name = try mem.toOwnedSlice(self.alloc);
                 },

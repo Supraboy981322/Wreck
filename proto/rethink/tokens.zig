@@ -164,14 +164,19 @@ pub const Token = union(enum) {
 
     pub const TokenType = union(enum) {
         string:[]u8,
-        label:Block,
+        label:Block, // TODO: probably should rename this to 'block'
         ident:[]u8,
         symbol:Symbols,
         variable:Variable,
+        keyword:Keywords,
         number:union(enum) {
             int:i256,
             uint:u256,
         }
+    };
+
+    pub const Keywords = enum {
+        @"fn",
     };
 
     pub const Symbols = enum {
@@ -189,6 +194,14 @@ pub const Token = union(enum) {
         return std.meta.stringToEnum(Symbols, @constCast(&[_]u8{b}));
     }
 
+    pub fn to_symbol(raw:[]u8) ?Symbols {
+        return std.meta.stringToEnum(Symbols, raw);
+    }
+
+    pub fn to_keyword(raw:[]u8) ?Keywords {
+        return std.meta.stringToEnum(Keywords, raw);
+    }
+
     pub fn mk_num(comptime T:type, n:T) Token {
         return .{
             .type = .{ .number = switch (@typeInfo(T)) {
@@ -201,6 +214,22 @@ pub const Token = union(enum) {
                 else => unreachable,
             }},
         };
+    }
+
+    pub fn make(raw:[]u8) Token {
+        if (to_symbol(raw)) |symbol|
+            return .{ .type = .{ .symbol = symbol } };
+
+        if (to_keyword(raw)) |keyword|
+            return .{ .type = .{ .keyword = keyword } };
+
+        if (raw[0] == '$')
+            return .{ .type = .{ .variable = Variable.make(raw[1..]) } };
+
+        if (raw[0] == '"' and raw[raw.len-1] == '"')
+            return .{ .type = .{ .string = raw[1..raw.len-1] } };
+
+        return .{ .type = .{ .ident = raw } };
     }
 };
 
