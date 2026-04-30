@@ -288,7 +288,9 @@ pub fn main(init:std.process.Init) !void {
             }
 
             if (Token.byte_looks_like_symbol(b)) {
-                const new:Token = .{ .type = .{ .symbol = Token.byte_to_symbol(b) orelse unreachable, } };
+                const new:Token = .{ .type = .{
+                    .symbol = Token.byte_to_symbol(b) orelse unreachable, }
+                };
                 if (block) |*blk|
                     try @constCast(blk).code.append(alloc, new)
                  else
