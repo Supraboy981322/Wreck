@@ -97,7 +97,7 @@ pub const Block = struct {
                             .arg => |n| self.args.?[n],
                             .name => |name| self.namespace.get(name) orelse {
                                 std.debug.print("\n|{s}|\n", .{name});
-                                return error.UknownVariable;
+                                return error.UnknownVariable;
                             }
                         };
                     }
