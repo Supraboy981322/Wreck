@@ -222,7 +222,35 @@ pub fn main(init:std.process.Init) !void {
 
     const alloc = init.arena.allocator();
 
-    var file = try std.Io.Dir.cwd().openFile(init.io, "foo.wr", .{ .mode = .read_only });
+    var args = init.minimal.args;
+    const file_name = blk: {
+        var itr = try args.iterateAllocator(alloc);
+        defer itr.deinit();
+        _ = itr.skip();
+        const ValidArgs = enum {
+            run // TODO: maybe 'build'
+        };
+        while (itr.next()) |arg| {
+            const match = std.meta.stringToEnum(ValidArgs, arg) orelse {
+                std.debug.print("invalid arg: {s}\n", .{arg});
+                std.process.abort();
+            };
+            switch (match) {
+                .run => break :blk try alloc.dupe(u8, itr.next() orelse {
+                    std.debug.print("no file given\n", .{});
+                    std.process.abort();
+                    unreachable;
+                }),
+            }
+        }
+        std.debug.print("no file given\n", .{});
+        std.process.abort();
+        unreachable;
+    };
+
+    var file = try std.Io.Dir.cwd().openFile(
+        init.io, file_name, .{ .mode = .read_only }
+    );
     defer file.close(init.io);
     var file_buf:[1024]u8 = undefined;
     var file_reader = file.reader(init.io, &file_buf);
