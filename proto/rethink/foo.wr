@@ -1,0 +1,6 @@
+main: {
+  bar("foo");
+}
+bar: {
+  print($[count]);
+}
