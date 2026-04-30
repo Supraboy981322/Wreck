@@ -1,0 +1,262 @@
+const std = @import("std");
+
+pub const Builtins = enum {
+    print,
+
+    pub fn run(name:[]u8, args:[]Token) !void {
+        const matched = std.meta.stringToEnum(
+            Builtins, name
+        ) orelse return error.InvalidBuiltin;
+        switch (matched) {
+            .print => try print(args),
+        }
+    }
+
+};
+
+pub const Block = struct {
+    args:?[]Token = null,
+    name:?[]u8, //null for root
+    code:std.ArrayList(Token), //so I can iterate backwords, popping off of it as I go
+    namespace:std.StringHashMap(Token),
+    alloc:std.mem.Allocator,
+    arena:std.heap.ArenaAllocator,
+    pub fn init(alloc:std.mem.Allocator, name:?[]u8) Block {
+        return .{
+            .namespace = .init(alloc),
+            .alloc = alloc,
+            .arena = .init(alloc),
+            .name = name,
+            .code = .empty,
+        };
+    }
+    pub fn to_namespace(self:*Block, name:[]u8, thing:Token) !void {
+        try self.namespace.put(try self.alloc.dupe(u8, name), thing);
+    }
+    pub fn deinit(self:*Block, alloc:std.mem.Allocator) void {
+        self.code.deinit(alloc);
+        self.namespace.deinit();
+        _ = self.arena.deinit();
+    }
+
+    pub fn run(self:*Block, args:[]Token) !?Token {
+        self.args = args;
+        var i:usize = 0;
+        while (i < self.code.items.len) : (i += 1) {
+            const tok = self.code.items[i];
+            switch (tok.type) {
+                .symbol => {},
+                .variable => {},
+                .string => {},
+                .ident => |ident| {
+                    const passed_args = try self.collect_args(i, tok);
+                    defer self.alloc.free(passed_args);
+                    _ = Builtins.run(ident, passed_args) catch |e| {
+                        if (e == error.InvalidBuiltin) {
+                            if (self.namespace.get(ident)) |*func| {
+                                if (func.type != .label)
+                                    return error.NotFunction
+                                else
+                                    _ = try @constCast(func).type.label.run(passed_args);
+                            } else {
+                                std.debug.print("\n|{s}|\n", .{ident});
+                                return error.UnknownIdentifier;
+                            }
+                        }
+                    };
+                    
+                },
+                else => unreachable,
+            }
+        }
+        return null;
+    }
+
+    pub fn collect_args(self:*Block, start_pos:usize, start_tok:Token) ![]Token {
+        var mem:std.ArrayList(Token) = .empty;
+        defer mem.deinit(self.alloc);
+        var i = start_pos+1;
+        var tok = start_tok;
+        while (i < self.code.items.len) : (i += 1) {
+            tok = self.code.items[i];
+            if (tok.type == .symbol) if (tok.type.symbol == .@";") {
+                return mem.toOwnedSlice(self.alloc);
+            };
+            switch (tok.type) {
+                .variable => {
+                    while (tok.type == .variable) {
+                        tok = switch (tok.type.variable) {
+                            .arg => |n| self.args.?[n],
+                            .name => |name| self.namespace.get(name) orelse {
+                                std.debug.print("\n|{s}|\n", .{name});
+                                return error.UknownVariable;
+                            }
+                        };
+                    }
+                },
+                .ident => unreachable,
+                .label => {
+                },
+                else => {},
+            }
+            try mem.append(self.alloc, tok);
+        }
+        return mem.toOwnedSlice(self.alloc);
+    }
+};
+
+pub const Variable = union(enum) {
+    arg:usize,
+    name:[]u8,
+};
+
+pub const Token = union(enum) {
+    type:TokenType,
+
+    pub const TokenType = union(enum) {
+        string:[]u8,
+        label:Block,
+        ident:[]u8,
+        symbol:Symbols,
+        variable:Variable,
+    };
+
+    pub const Symbols = enum {
+        @";",
+    };
+};
+
+pub fn main(init:std.process.Init) !void {
+    // TODO: deinit seg-faults defer _ = init.arena.deinit();
+    const alloc = init.arena.allocator();
+
+    const src =
+        \\main: {
+        \\  bar "foo";
+        \\}
+        \\bar: {
+        \\  print $0;
+        \\}
+    ;
+
+    var reader:std.Io.Reader = .fixed(src);
+
+    var mem:std.ArrayList(u8) = .empty;
+    defer mem.deinit(alloc);
+
+    var res:Block = .init(alloc, null);
+    defer res.deinit(alloc);
+
+    var block:?Block = null;
+    defer if (block) |*blk| @constCast(blk).deinit(alloc);
+
+    var esc:bool = false;
+    var string:?u8 = null;
+    while (reader.takeByte() catch null) |b| {
+        if (esc) {
+            esc = false;
+            try mem.append(alloc, b);
+            continue;
+        }
+        if (string) |s| {
+            if (b == s) {
+                string = null;
+                const str:Token = .{ .type = .{ .string = try mem.toOwnedSlice(alloc) } };
+                if (block) |*blk|
+                    try @constCast(blk).code.append(alloc, str)
+                else
+                    try res.code.append(alloc, str);
+            } else
+                try mem.append(alloc, b);
+            continue;
+        }
+        if (std.ascii.isWhitespace(b) or b == ';') {
+            if (mem.items.len > 0) {
+                const raw = try mem.toOwnedSlice(alloc);
+                if (block) |*blk|
+                    try @constCast(blk).code.append(alloc, .{ .type =
+                        if (raw[0] == '"' and raw[raw.len-1] == '"') .{
+                            .string = raw[1..raw.len-1],
+                        } else if (raw[0] == '$') .{
+                            .variable = if (std.fmt.parseInt(usize, raw[1..], 10)) |int| .{
+                                .arg = int,
+                            } else |_| .{
+                                .name = raw[1..],
+                            },
+                        } else .{
+                            .ident = raw,
+                        }
+                    })
+                else
+                    try res.code.append(alloc, .{ .type =
+                        if (raw[0] == '"' and raw[raw.len-1] == '"') .{
+                            .string = raw[1..raw.len-1],
+                        } else if (raw[0] == '$') .{
+                            .variable = if (std.fmt.parseInt(usize, raw[1..], 10)) |int| .{
+                                .arg = int,
+                            } else |_| .{
+                                .name = raw[1..],
+                            },
+                        } else .{
+                            .ident = raw,
+                        }
+                    });
+            }
+
+            if (b == ';') {
+                const new:Token = .{ .type = .{ .symbol = .@";" } };
+                if (block) |*blk|
+                    try @constCast(blk).code.append(alloc, new)
+                 else
+                    try res.code.append(alloc, new);
+            }
+            continue;
+        }
+        switch (b) {
+            '"' => string = b,
+            '\\' => esc = true,
+            '{' => {}, // TODO: unlabled block
+            '}' => {
+                if (block == null)
+                    @panic("closing paren outside of block");
+                try res.to_namespace(
+                    block.?.name orelse @panic("block name null"),
+                    .{ .type = .{ .label = block.? } }
+                );
+                block = null;
+            },
+            ':' => {
+                if (mem.items.len < 1)
+                    @panic("invalid label, mem empty");
+                if (block) |_|
+                    @panic("labeled blocks cannot be nested");
+                block = .init(alloc, try mem.toOwnedSlice(alloc));
+            },
+            else => try mem.append(alloc, b),
+        }
+    }
+    if (res.namespace.get("main")) |*entry| {
+        if (entry.type == .label) {
+            var itr = res.namespace.iterator();
+            while (itr.next()) |name_entry| {
+                try @constCast(entry).type.label.to_namespace(
+                    @constCast(name_entry.key_ptr.*),
+                    name_entry.value_ptr.*
+                );
+            }
+            _ = try @constCast(entry).type.label.run(@constCast(&[_]Token{}));
+        } else
+            @panic("main not a label");
+    } else {
+        @panic("no main");
+    }
+}
+
+pub fn print(args:[]Token) !void {
+    for (args) |a| {
+        switch (a.type) {
+            .string => |str| std.debug.print("{s} ", .{str}),
+            else => unreachable,
+        }
+    }
+}
