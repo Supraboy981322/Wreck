@@ -222,16 +222,11 @@ pub fn main(init:std.process.Init) !void {
 
     const alloc = init.arena.allocator();
 
-    const src =
-        \\main: {
-        \\  bar("foo");
-        \\}
-        \\bar: {
-        \\  print($[count]);
-        \\}
-    ;
-
-    var reader:std.Io.Reader = .fixed(src);
+    var file = try std.Io.Dir.cwd().openFile(init.io, "foo.wr", .{ .mode = .read_only });
+    defer file.close(init.io);
+    var file_buf:[1024]u8 = undefined;
+    var file_reader = file.reader(init.io, &file_buf);
+    var reader = &file_reader.interface;
 
     var mem:std.ArrayList(u8) = .empty;
     defer mem.deinit(alloc);
@@ -333,9 +328,8 @@ pub fn main(init:std.process.Init) !void {
             _ = try @constCast(entry).type.label.run(@constCast(&[_]Token{}));
         } else
             @panic("main not a label");
-    } else {
+    } else
         @panic("no main");
-    }
 }
 
 pub fn print(args:[]Token) !void {
