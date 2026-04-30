@@ -19,6 +19,7 @@ pub const Builtins = enum {
 };
 
 pub fn print(args:[]Token) !void {
+    defer std.debug.print("\n", .{});
     for (args) |a| {
         switch (a.type) {
             .string => |str| std.debug.print("{s} ", .{str}),
