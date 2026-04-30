@@ -1,6 +1,13 @@
 main: {
   arg_count("foo" "bar" "baz quz");
+  block_test();
 }
 arg_count: {
   print($[count]);
+}
+block_test: {
+  {}
+  {
+    print("block test");
+  }
 }
