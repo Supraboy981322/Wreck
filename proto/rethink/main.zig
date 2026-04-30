@@ -189,6 +189,8 @@ pub const Token = union(enum) {
     pub const Symbols = enum {
         @";",
         @"(", @")",
+
+        @"@", @"#", // TODO: identifier for builtins and calling external code
     };
 
     pub fn byte_looks_like_symbol(b:u8) bool {
