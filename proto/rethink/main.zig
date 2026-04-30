@@ -77,11 +77,19 @@ pub const Block = struct {
         defer mem.deinit(self.alloc);
         var i = start_pos+1;
         var tok = start_tok;
+        var depth:u8 = 0;
         while (i < self.code.items.len) : (i += 1) {
             tok = self.code.items[i];
-            if (tok.type == .symbol) if (tok.type.symbol == .@";") {
-                return mem.toOwnedSlice(self.alloc);
-            };
+            if (tok.type == .symbol) {
+                switch (tok.type.symbol) {
+                    .@"(" => depth += 1,
+                    .@")" => depth -= 1,
+                    else => return error.MissplacedSymbol,
+                }
+                if (depth == 0)
+                    return try mem.toOwnedSlice(self.alloc);
+                continue;
+            }
             switch (tok.type) {
                 .variable => {
                     while (tok.type == .variable) {
@@ -95,8 +103,7 @@ pub const Block = struct {
                     }
                 },
                 .ident => unreachable,
-                .label => {
-                },
+                .label => @panic("TODO: nested function calls"),
                 else => {},
             }
             try mem.append(self.alloc, tok);
@@ -123,7 +130,16 @@ pub const Token = union(enum) {
 
     pub const Symbols = enum {
         @";",
+        @"(", @")",
     };
+
+    pub fn byte_looks_like_symbol(b:u8) bool {
+        return byte_to_symbol(b) != null;
+    }
+
+    pub fn byte_to_symbol(b:u8) ?Symbols {
+        return std.meta.stringToEnum(Symbols, @constCast(&[_]u8{b}));
+    }
 };
 
 pub fn main(init:std.process.Init) !void {
@@ -132,10 +148,10 @@ pub fn main(init:std.process.Init) !void {
 
     const src =
         \\main: {
-        \\  bar "foo";
+        \\  bar("foo");
         \\}
         \\bar: {
-        \\  print $0;
+        \\  print($0);
         \\}
     ;
 
@@ -170,7 +186,7 @@ pub fn main(init:std.process.Init) !void {
                 try mem.append(alloc, b);
             continue;
         }
-        if (std.ascii.isWhitespace(b) or b == ';') {
+        if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
             if (mem.items.len > 0) {
                 const raw = try mem.toOwnedSlice(alloc);
                 if (block) |*blk|
@@ -203,8 +219,8 @@ pub fn main(init:std.process.Init) !void {
                     });
             }
 
-            if (b == ';') {
-                const new:Token = .{ .type = .{ .symbol = .@";" } };
+            if (Token.byte_looks_like_symbol(b)) {
+                const new:Token = .{ .type = .{ .symbol = Token.byte_to_symbol(b) orelse unreachable, } };
                 if (block) |*blk|
                     try @constCast(blk).code.append(alloc, new)
                  else
