@@ -1,6 +1,6 @@
 main: {
-  bar("foo");
+  arg_count("foo" "bar" "baz quz");
 }
-bar: {
+arg_count: {
   print($[count]);
 }
