@@ -34,12 +34,8 @@ pub const Block = struct {
             const tok = self.code.items[i];
             switch (tok.type) {
 
-                .symbol => {}, // TODO: symbol
-                .variable => {}, // TODO: variable
-                .string => {}, // TODO: string
-
                 .ident => |ident| {
-                    const passed_args = try self.collect_args(i, tok);
+                    const passed_args = try self.collect_args(&i, tok);
                     defer self.alloc.free(passed_args);
                     _ = Builtins.run(ident, passed_args) catch |e| {
                         if (e == error.InvalidBuiltin) {
@@ -54,10 +50,11 @@ pub const Block = struct {
                                 std.debug.print("\n|{s}|\n", .{ident});
                                 return error.UnknownIdentifier;
                             }
-                        }
+                        } else
+                            return e;
                     };
-                    
                 },
+
                 .block => |*block| {
                     var blk = block.*;
                     var itr = self.namespace.iterator();
@@ -66,16 +63,23 @@ pub const Block = struct {
                     _ = try blk.run(@constCast(&[_]Token{}));
                 },
 
-                else => @panic(@tagName(tok.type)), //Block.run()
+                .symbol => |symbol| if (symbol != .@";")
+                    return error.MissplacedSymbol,
+
+                else => std.debug.panic("{any}", .{tok.type}), //Block.run()
             }
         }
         return null;
     }
 
-    pub fn collect_args(self:*Block, start_pos:usize, start_tok:Token) ![]Token {
+    pub fn collect_args(self:*Block, start_pos:*usize, start_tok:Token) ![]Token {
         var mem:std.ArrayList(Token) = .empty;
         defer mem.deinit(self.alloc);
-        var i = start_pos+1;
+        var i = start_pos.*+1;
+        defer {
+            const start = start_pos.*;
+            start_pos.* += i - start;
+        }
         var tok = start_tok;
         var depth:u8 = 0;
         while (i < self.code.items.len) : (i += 1) {
