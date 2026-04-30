@@ -33,9 +33,11 @@ pub const Block = struct {
         while (i < self.code.items.len) : (i += 1) {
             const tok = self.code.items[i];
             switch (tok.type) {
-                .symbol => {},
-                .variable => {},
-                .string => {},
+
+                .symbol => {}, // TODO: symbol
+                .variable => {}, // TODO: variable
+                .string => {}, // TODO: string
+
                 .ident => |ident| {
                     const passed_args = try self.collect_args(i, tok);
                     defer self.alloc.free(passed_args);
@@ -63,6 +65,7 @@ pub const Block = struct {
                         try blk.to_namespace(@constCast(entry.key_ptr.*), entry.value_ptr.*);
                     _ = try blk.run(@constCast(&[_]Token{}));
                 },
+
                 else => @panic(@tagName(tok.type)), //Block.run()
             }
         }
