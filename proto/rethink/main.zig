@@ -200,6 +200,20 @@ pub const Token = union(enum) {
     pub fn byte_to_symbol(b:u8) ?Symbols {
         return std.meta.stringToEnum(Symbols, @constCast(&[_]u8{b}));
     }
+
+    pub fn mk_num(comptime T:type, n:T) Token {
+        return .{
+            .type = .{ .number = switch (@typeInfo(T)) {
+                .int => |info|
+                    if (info.signedness == .signed) .{
+                        .int = @intCast(n),
+                    } else .{
+                        .uint = @intCast(n),
+                    },
+                else => unreachable,
+            }},
+        };
+    }
 };
 
 pub fn main(init:std.process.Init) !void {
