@@ -191,7 +191,7 @@ pub const Token = union(enum) {
     }
 
     pub fn byte_to_symbol(b:u8) ?Symbols {
-        return std.meta.stringToEnum(Symbols, @constCast(&[_]u8{b}));
+        return to_symbol(@constCast(&[_]u8{b}));
     }
 
     pub fn to_symbol(raw:[]u8) ?Symbols {
