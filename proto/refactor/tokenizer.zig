@@ -2,158 +2,118 @@ const std = @import("std");
 const hlp = @import("helpers.zig");
 const types = @import("types.zig");
 
-const ByteItr = hlp.ByteItr;
-const BasicTok = types.BasicTok;
-
-pub fn to_tok_type(raw:[]u8) BasicTok.Type {
-    if (raw.len == 0) @panic("empty token"); //fn to_tok_type(raw:[]u8) BasicTok.Type { ... }
-
-    if (hlp.maybe_string(raw)) return .STRING;
-
-    if (std.meta.stringToEnum(
-        BasicTok.Symbols, raw
-    )) |_|
-        return .SYMBOL;
-
-    if (std.meta.stringToEnum(
-        BasicTok.KeyWords, raw
-    )) |_|
-        return .KEYWORD;
-
-    return .IDENT;
-}
+const Token = types.Token;
 
 pub const Tokenizer = struct {
-    in:[]u8,
-    itr:ByteItr,
-    mem:std.ArrayList(u8),
-    res:std.ArrayList(BasicTok),
-    alloc:*std.mem.Allocator,
-
-    string:u8 = 0,
+    io:std.Io,
+    alloc:std.mem.Allocator,
+    mem:std.ArrayList(u8) = .empty,
+    res:std.ArrayList(Token) = .empty,
     esc:bool = false,
+    reader:?std.Io.Reader = null,
+    string:?u8 = null,
 
-    pub fn init(alloc:*std.mem.Allocator, in:[]u8) !Tokenizer {
-        var tok_maker:Tokenizer = .{
-            .mem = undefined,
-            .res = undefined,
+    pub fn init(io:std.Io, alloc:std.mem.Allocator) Tokenizer {
+        return .{
+            .io = io,
             .alloc = alloc,
-            .in = in,
-            .itr = ByteItr.init(in),
         };
-        tok_maker.mem = try std.ArrayList(u8).initCapacity(tok_maker.alloc.*, 0);
-        tok_maker.res = try std.ArrayList(BasicTok).initCapacity(tok_maker.alloc.*, 0);
-        return tok_maker;
+    }
+
+    pub fn init_with_source(io:std.Io, alloc:std.mem.Allocator, src:[]u8) Tokenizer {
+        var res:Tokenizer = .{
+            .io = io,
+            .alloc = alloc,
+        };
+        res.load_source(src);
+        return res;
     }
 
     pub fn deinit(self:*Tokenizer) void {
-        self.mem.deinit(self.alloc.*);
-        for (self.res.items) |*tok|
-            @constCast(tok).deinit();
-        self.res.deinit(self.alloc.*);
+        self.reset();
+        self.res.deinit(self.alloc);
+        self.mem.deinit(self.alloc);
     }
 
-    pub fn re_init(self:*Tokenizer) !void {
-        self.deinit();
-        self.mem = try std.ArrayList(u8).initCapacity(self.alloc.*, 0);
-        self.res = try std.ArrayList(BasicTok).initCapacity(self.alloc.*, 0);
+    pub fn reset(self:*Tokenizer) void {
+        self.res.clearAndFree(self.alloc);
+        self.mem.clearAndFree(self.alloc);
+        self.reader = null;
+        self.string = null;
     }
 
-    pub fn do(self:*Tokenizer) ![]BasicTok {
-        defer {
-            self.re_init() catch unreachable; //likely OOM
+    pub fn next(self:*Tokenizer) !?u8 {
+        const b = try self.peek();
+        if (b) |_| self.reader.?.toss(1);
+        return b;
+    }
+
+    pub fn peek(self:*Tokenizer) !?u8 {
+        try self.ready_test();
+        return
+            self.reader.?.peekByte() catch |e|
+                if (e != error.EndOfStream)
+                    e
+                else
+                    null;
+    }
+
+    pub fn load_source(self:*Tokenizer, src:[]u8) void {
+        self.reader = .fixed(src);
+    }
+
+    pub fn ready_test(self:*Tokenizer) !void {
+        if (self.reader == null) return error.NoSource; //must call load_source() first
+    }
+
+    pub fn builtin(self:*Tokenizer) !void {
+        if (self.mem.items.len > 0) unreachable;
+        while (try self.next()) |b| {
+            if (b == '(') break;
+            try self.mem.append(self.alloc, b);
+        }
+        //comments are parsed like a builtin
+        if (self.mem.items.len > 0) {
+            self.mem.clearAndFree(self.alloc);
+            var depth:usize = 0;
+            while (try self.next()) |b| {
+                if (b == '(')
+                    depth += 1
+                else if (b == ')')
+                    depth -= 1;
+                if (depth == 0) break;
+            }
+            return;
         }
 
-        loop: while (self.itr.next()) |b| {
+        try self.res.append(self.alloc, try .mk_builtin(self.alloc, self.mem.items));
+        self.mem.clearAndFree(self.alloc);
+    }
 
+    pub fn do(self:*Tokenizer) !std.ArrayList(Token) {
+        try self.ready_test();
+        while (try self.next()) |b| {
             if (self.esc) {
-                try self.mem.append(self.alloc.*, b);
-                continue :loop;
+                self.esc = false;
+                try self.mem.append(self.alloc, b);
+                continue;
             }
 
-            if (self.string != 0) {
-                try self.mem.append(self.alloc.*, b);
-                if (b == self.string) {
-                    self.string = 0;
-                    try self.new_tok();
-                }
-                continue :loop;
-            }
+            if (b == '\\') { self.esc = true; continue; }
 
+            if (self.string) |s| {
+                if (s != b)
+                    try self.mem.append(self.alloc, b)
+                else
+                    self.string = null;
+                continue;
+            }
             switch (b) {
-
-                '"', '\'' => {
-                    try self.mem.append(self.alloc.*, b);
-                    self.string = b;
-                },
-
-                '#' => if (self.itr.peek() == '(') {
-                    self.itr.skipToWithDepth(')', '(');
-                },
-
-                '\\' => self.esc = !self.esc,
-
-                ' ', '\r', '\t', '\n', '(', ')', '{', '}', ';' => {
-                    if (self.can_ignore()) continue :loop;
-                    const mem_was_empty = self.mem.items.len == 0;
-                    try self.new_tok();
-                    if (BasicTok.looks_like_symbol(@constCast(&[_]u8{b})) and !mem_was_empty) 
-                        try self.new_tok();
-                },
-                else => {
-                    try self.mem.append(self.alloc.*, b);
-                }
+                '#' => try self.builtin(),
+                '"', '\'' => self.string = b,
+                else => try self.mem.append(self.alloc, b),
             }
         }
-        
-        if (self.mem.items.len > 0) try self.new_tok();
-
-        return self.res.toOwnedSlice(self.alloc.*);
-    }
-
-    pub fn can_ignore(self:*Tokenizer) bool {
-        return self.mem.items.len == 0 and std.ascii.isWhitespace(self.itr.cur);
-    }
-
-    pub fn new_tok(self:*Tokenizer) !void {
-
-        var raw =
-            if (self.mem.items.len > 0)
-                try self.mem.toOwnedSlice(self.alloc.*)
-            else
-                try self.alloc.dupe(u8, &[_]u8{self.itr.cur});
-
-        const matched_type = to_tok_type(raw);
-        try self.res.append(self.alloc.*, .{
-            .type = matched_type,
-            .raw = raw,
-            .alloc = self.alloc,
-        });
-
-        var last_tok:*BasicTok = &self.res.items[self.res.items.len - 1];
-        var tok_alloc = last_tok.alloc;
-
-        switch (matched_type) {
-
-            .STRING => {
-                const cut = try tok_alloc.dupe(u8, raw[1..raw.len-1]);
-                self.alloc.free(raw);
-                last_tok.raw = cut;
-            },
-
-            .KEYWORD => {
-                last_tok.keyword = std.meta.stringToEnum(
-                    BasicTok.KeyWords, last_tok.raw
-                ) orelse unreachable;
-            },
-
-            .SYMBOL => {
-                last_tok.symbol = std.meta.stringToEnum(
-                    BasicTok.Symbols, last_tok.raw
-                ) orelse unreachable;
-            },
-
-            else => {},
-        }
+        return try self.res.clone(self.alloc);
     }
 };

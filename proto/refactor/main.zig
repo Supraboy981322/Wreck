@@ -5,29 +5,21 @@ const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const ByteItr = hlp.ByteItr;
 
 pub fn main(init:std.process.Init) !void {
-    var alloc = init.gpa;
+    const alloc = init.gpa;
 
     const src:[]u8 = @constCast(@embedFile("test.wr"));
-    var tokenizer = try Tokenizer.init(&alloc, src);
+    var tokenizer:Tokenizer = .init(init.io, alloc);
+    tokenizer.load_source(src);
     defer tokenizer.deinit();
 
-    const toks = try tokenizer.do(); 
-    defer alloc.free(toks);
+    var toks = try tokenizer.do(); 
+    defer toks.deinit(alloc);
 
-    for (toks) |*tok| {
-        std.debug.print(
-            \\tok:
-            \\  raw |{s}|
-            \\  type {s}
-            \\  keyword {s}
-            \\  symbol {s}
-            ++ "\n",
-        .{
-            tok.raw,
-            @tagName(tok.type),
-            if (tok.type == .KEYWORD) @tagName(tok.keyword) else "[undefined]",
-            if (tok.type == .SYMBOL) @tagName(tok.symbol) else "[undefined]",
-        });
-        @constCast(tok).deinit();
-    }
+    for (toks.items) |tok| std.debug.print(
+        \\|{s}|
+        \\  {s}
+    ++ "\n", .{
+        @tagName(tok),
+        tok.format(init.arena.allocator()),
+    });
 }

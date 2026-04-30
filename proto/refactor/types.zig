@@ -1,106 +1,177 @@
 const std = @import("std");
+const hlp = @import("helpers.zig");
+const builtins = @import("builtins.zig");
 
-pub const NamespaceEntry = struct {
-    type:BasicTok.KeyWords,
-    alloc:*std.mem.Allocator,
-    fn_stuff:FnStuff = undefined,
-    var_stuff:VarStuff = undefined,
+pub const TokenType = std.meta.Tag(Token);
+pub const Token = union(enum) {
+    literal:Value,
+    ident:Ident,
+    symbol:Symbol,
+    keyword:Keyword,
+    type:Type,
 
-    pub const FnStuff = struct {
-        paramTemplate:[]Param,
-        content:[]BasicTok, //content:[]RichTok,
-        local_namespace:std.StringHashMap(BasicTok),
+    pub const PossibleTokens = std.meta.Tag(Token);
+    pub const Keyword = enum {
+        @"if", @"?",
+        @"else", @"?!",
+        @"elif", @"?!?", // TODO: maybe change ?!?
 
-        pub const Param = struct {
-            name:[]u8,
-            type:ValueType,
+        set, let,
+        @"fn",
 
-            pub fn init(tok:BasicTok, value_type:ValueType) Param {
-                return .{
-                    .name = tok.raw,
-                    .type = value_type,
-                };
+        pub fn is_else(self:*Keyword) bool {
+            return self == .@"else" or self == .@"?!";
+        }
+
+        pub fn is_else_if(self:*Keyword) bool {
+            return self == .@"elif" or self == .@"?!?";
+        }
+
+        pub fn is_if(self:*Keyword) bool {
+            return self == .@"if" or self == .@"?";
+        }
+    };
+
+    pub const Builtin = enum {
+        print,
+        //goto = @panic("TODO: goto"),
+
+        const functions:[1]*const fn([]Token) builtins.Error!Token = .{
+            &builtins.print,
+        };
+        pub fn run(self:*Builtin) builtins.Error!Token {
+            const match = functions[@intFromEnum(self)];
+            return try match();
+        }
+    };
+
+
+    pub const Ident = struct {
+        name:[]u8,
+        builtin:?Builtin,
+        type:Ident.Type,
+        pub fn init(alloc:std.mem.Allocator, name:[]u8, hint:MakeHint) !void {
+            _ = hint;
+            return .{
+                .name = try alloc.dupe(u8, name),
+                .builtin = false,
+                .type = .@"fn",
+            };
+        }
+        pub const Type = enum {
+            set, let,
+            @"fn",
+            pub fn is_variable(self:*Ident.Type) bool {
+                return self == .set or self == .let;
             }
         };
     };
 
-    pub const VarStuff = struct {
-        type:ValueType,
-        value:struct {
-            string:[]u8 = undefined,
-            number:isize = undefined,
-            byte:u8 = undefined,
-        }
-    };
-};
+    pub const Type = std.meta.Tag(Value);
+    pub const Value = union(enum) {
+        string:[]u8,
+        int:i256,
+        void:void,
+        bool:bool,
 
-pub const ValueType = enum {
-    Str,
-    Num,
-    B,
-};
-
-pub const BasicTok = struct {
-    raw:[]u8,
-    type:Type,
-
-    keyword:KeyWords = undefined,
-    symbol:Symbols = undefined,
-    ident_info:IdentInfo = undefined,
-    type_info:TypeInfo = undefined,
-
-    alloc:*std.mem.Allocator,
-
-    pub const KeyWords = enum {
-        @"set",
-        @"let",
-        @"fn",
+        uint:u256,
+        list:void, // TODO: lists
     };
 
-    pub const Symbols = enum {
+    pub const Symbol = enum {
         @"{", @"}",
         @"(", @")",
+        @"<",   @">",
+
         @";",
         @"=",
+
+        //basic logical comparison
+        @"==", @"!=", @">=", @"<=",
+
+        @"ifnull", @"or", @"xor", @"and", @"nor",
+
+        // TODO: everything that follows this comment
+
+        //basic bitwise
+        @"&", @"|", @"^", @">>", @"<<",
+
+        //bitwise assignment
+        @"&=", @"|=", @"^=", @"<<=", @">>=", @"<<|=", @">>|=",
+
+        //basic operators
+        @"*", @"+",  @"/", @"%", @"-",
+
+        //basic assignment
+        @"-=", @"+=", @"*=", @"/=", @"%=",
+        
+        //basic symbols 
+        @"[", @"]",
+
+        //non-standard
+        @"~=",  //loose equality (ignores type; eg: "1" ~= 1 would be true)
+        @"#=",  //contains (lists, strings)
+        @"++",  //join (lists, strings)
+        @"**",  //glob
+        @"..",  //range
+        @"...", //expand
+        @",,",  //splat
     };
 
-    pub const Type = enum {
-        STRING,
-        IDENT,
-        KEYWORD,
-        SYMBOL,
-        TYPE,
-    };
-
-    const IdentInfo = struct {
-        type:IdentType,
-        fn_params:[]BasicTok = undefined, //fn_params:[]*BasicTok = undefined,
-
-        pub const IdentType = enum {
-            @"fn",
-            @"set",
-            @"let",
+    pub fn parse_literal(alloc:std.mem.Allocator, raw:[]u8, hint:?Type) !?Token {
+        const expect:ExpectType = @as(ExpectType, hint orelse .unknown);
+        // TODO: list
+        return .{
+            .value = if (hlp.is_num(raw) or expect.num()) .{
+                // TODO: uint
+                .int = std.fmt.parseInt(isize, raw, 10) catch unreachable,
+            } else if (hlp.parse_bool(raw) or expect == .bool) |v| .{
+                .bool = v
+            } else if (std.mem.eql(u8, raw, "_") or expect == .void) .{
+                .void = {},
+            } else if (expect == .string) .{
+                .string = try alloc.dupe(u8, raw),
+            } else
+                return null,
         };
-    };
-
-    pub const TypeInfo = struct {
-        type:ValueType,
-    };
-
-    pub fn deinit(self:*BasicTok) void {
-        self.alloc.free(self.raw);
     }
 
-    pub fn looks_like_symbol(check:[]u8) bool {
-        _ = std.meta.stringToEnum(
-            BasicTok.Symbols, check
-        ) orelse
-            return false;
-        return true;
+
+    pub const ExpectType = enum {
+        unknown,
+        pub fn num(self:*ExpectType) bool {
+            return self == .int or self == .uint;
+        }
+    } || Type;
+
+    pub const MakeHint = struct {
+        expected:?PossibleTokens = null,
+        type:?Type = null,
+    };
+
+    pub fn make(alloc:std.mem.Allocator, raw:[]u8, hint:MakeHint) Token {
+        return 
+            if (std.meta.stringToEnum(Symbol, raw)) |symbol| return .{
+                .symbol = symbol,
+            } else if (std.meta.stringToEnum(Keyword, raw)) |keyword| .{
+                .keyword = keyword,
+            } else if (std.meta.stringToEnum(Type, raw)) |t| .{
+                .type = t,
+            } else if (parse_literal(alloc, raw, hint.type)) |matched|
+                matched
+            else .{
+                .ident = .init(raw, hint),
+            };
     }
 
-    pub fn is_symbol(self:*BasicTok, symbol:Symbols) bool {
-        if (!self.type == .SYMBOL) return false;
-        return self.symbol == symbol;
+    pub fn mk_builtin(alloc:std.mem.Allocator, raw:[]u8) !Token {
+        const matched = std.meta.stringToEnum(Builtin, raw) orelse return error.UnknownBuiltin;
+        return .{
+            .ident = .{
+                .type = .@"fn",
+                .builtin = matched,
+                .name = try alloc.dupe(u8, raw),
+            }
+        };
     }
 };
