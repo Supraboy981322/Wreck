@@ -217,7 +217,9 @@ pub const Token = union(enum) {
 };
 
 pub fn main(init:std.process.Init) !void {
-    // TODO: deinit seg-faults defer _ = init.arena.deinit();
+    // FIXME: deinit seg-faults
+    //   defer _ = init.arena.deinit();
+
     const alloc = init.arena.allocator();
 
     const src =
