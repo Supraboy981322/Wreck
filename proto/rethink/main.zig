@@ -94,11 +94,18 @@ pub const Block = struct {
                 .variable => {
                     while (tok.type == .variable) {
                         tok = switch (tok.type.variable) {
-                            .arg => |n| self.args.?[n],
+                            .arg => |a| switch (a) {
+                                .plain => |n| self.args.?[n],
+                                .keyword => |key| switch (key) {
+                                    .@"count" => Token.mk_num(usize, self.args.?.len),
+                                    .@",,", .splat => @panic("TODO: splat args"),
+                                },
+                                else => unreachable,
+                            },
                             .name => |name| self.namespace.get(name) orelse {
                                 std.debug.print("\n|{s}|\n", .{name});
                                 return error.UnknownVariable;
-                            }
+                            },
                         };
                     }
                 },
@@ -112,9 +119,56 @@ pub const Block = struct {
     }
 };
 
+pub const Arg = union(enum) {
+    plain:usize,
+    keyword:ArgKeyword,
+    complex:[]u8, //parsed when used  TODO: advanced arg stuff
+    pub const ArgKeyword = enum {
+        @",,", splat, //splat
+        count, 
+    };
+
+    pub fn is_splat(self:Arg) !bool {
+        if (self != .keyword)
+            return error.ArgNotKeyword;
+        return self.keyword == .@",," or self.keyword == .@"splat";
+    }
+
+    pub fn byte_to_keyword(b:u8) ?Arg {
+        return Arg.to_keyword(@constCast(&[_]u8{b}));
+    }
+    pub fn to_keyword(str:[]u8) ?Arg {
+        return .{ .keyword = std.meta.stringToEnum(ArgKeyword, str) orelse return null };
+    }
+
+    pub fn make(raw:[]u8) ?Arg {
+        if (std.fmt.parseInt(usize, raw, 10)) |int| 
+            return .{ .plain = int }
+        else |_| {}
+
+        if (raw[0] == '[' and raw[raw.len-1] == ']') {
+            return
+                if (Arg.to_keyword(raw[1..raw.len-1])) |match|
+                    match
+                else 
+                    .{ .complex = raw, };
+        }
+        return null;
+    }
+};
+
 pub const Variable = union(enum) {
-    arg:usize,
+    arg:Arg,
     name:[]u8,
+
+    pub fn make(raw:[]u8) Variable {
+        return
+            if (Arg.make(raw)) |match| .{
+                .arg = match
+            } else .{
+                .name = raw[1..],
+            };
+    }
 };
 
 pub const Token = union(enum) {
@@ -126,6 +180,10 @@ pub const Token = union(enum) {
         ident:[]u8,
         symbol:Symbols,
         variable:Variable,
+        number:union(enum) {
+            int:i256,
+            uint:u256,
+        }
     };
 
     pub const Symbols = enum {
@@ -194,11 +252,7 @@ pub fn main(init:std.process.Init) !void {
                         if (raw[0] == '"' and raw[raw.len-1] == '"') .{
                             .string = raw[1..raw.len-1],
                         } else if (raw[0] == '$') .{
-                            .variable = if (std.fmt.parseInt(usize, raw[1..], 10)) |int| .{
-                                .arg = int,
-                            } else |_| .{
-                                .name = raw[1..],
-                            },
+                            .variable = Variable.make(raw[1..]),
                         } else .{
                             .ident = raw,
                         }
@@ -208,11 +262,7 @@ pub fn main(init:std.process.Init) !void {
                         if (raw[0] == '"' and raw[raw.len-1] == '"') .{
                             .string = raw[1..raw.len-1],
                         } else if (raw[0] == '$') .{
-                            .variable = if (std.fmt.parseInt(usize, raw[1..], 10)) |int| .{
-                                .arg = int,
-                            } else |_| .{
-                                .name = raw[1..],
-                            },
+                            .variable = Variable.make(raw[1..]),
                         } else .{
                             .ident = raw,
                         }
