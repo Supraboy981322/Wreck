@@ -195,6 +195,7 @@ pub const Tokenizer = struct {
 
         var c = while (reader.takeByte() catch null) |c| {
             if (std.ascii.isWhitespace(c) or c == ')') {
+                if (mem.items.len == 0 and c == ')') break try reader.peekByte();
                 var type_hint_string:?[]u8 = null;
                 if (std.mem.count(u8, mem.items, "[") > 0) blk: {
                     _, const dumb_const_type_hint_string = std.mem.cut(
