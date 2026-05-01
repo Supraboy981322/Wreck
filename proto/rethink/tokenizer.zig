@@ -43,7 +43,12 @@ pub const Tokenizer = struct {
         return try tokenizer.do(self.reader.?, name);
     }
 
-    pub fn do(self:*Tokenizer, reader:*std.Io.Reader, name:?[]u8) TokenizerError!Block {
+    pub fn do(
+        self:*Tokenizer,
+        reader:*std.Io.Reader,
+        name:?[]u8
+    ) TokenizerError!Block {
+
         // TODO:  helpers to dupe result so arena can be reset
         // defer self.arena.reset(.free_all);
         const alloc = self.arena.allocator();
