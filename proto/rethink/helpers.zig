@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const DepthTrackerError = error {NotTracking} || std.mem.Allocator.Error;
+
 pub fn DepthTracker(comptime T:type) type {
     return struct {
         stuff:std.AutoHashMap(T, usize),
@@ -19,14 +21,15 @@ pub fn DepthTracker(comptime T:type) type {
             _ = self.arena.deinit();
         }
 
-        pub fn bump(self:*Self, what:T) !void {
+        pub fn bump(self:*Self, what:T) DepthTrackerError!void {
             const thing = self.stuff.getPtr(what) orelse {
                 try self.stuff.put(what, 0);
+                return;
             };
             thing.* += 1;
         }
 
-        pub fn knock(self:*Self, what:T) !void {
+        pub fn knock(self:*Self, what:T) DepthTrackerError!void {
             const thing = self.stuff.getPtr(what) orelse {
                 return error.NotTracking;
             };
