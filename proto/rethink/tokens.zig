@@ -294,4 +294,39 @@ pub const List = struct {
         if (self.count() <= i) return error.IndexOutOfBounds;
         return .{ .type = self.value.items[i] };
     }
+
+    pub const TypeCheckOpts = struct {
+        solidify:bool = false,
+        expected:?LegalTypes = null,
+    };
+
+    pub fn check_type(self:*List, opts:TypeCheckOpts) !void {
+        if (self.value.items.len == 0) return;
+
+        var last_type:LegalTypes = std.meta.stringToEnum(
+            LegalTypes, @tagName(self.value.items[0])
+        ) orelse
+            return error.IllegalType;
+
+        for (self.value.items) |value| {
+            const current_type:LegalTypes = std.meta.stringToEnum(
+                LegalTypes, @tagName(value)
+            ) orelse
+                return error.IllegalType;
+
+            for ([_]bool{
+                if (opts.expected) |expected| current_type != expected else true,
+                self.type != .DYNAMIC and self.type != current_type,
+                last_type != current_type,
+            }) |check|
+                if (!check) return error.TypeMissmatch;
+
+            last_type = current_type;
+        }
+
+        if (opts.solidify) {
+            std.debug.assert(self.type == .DYNAMIC); //should only soldify if dynamic
+            self.type = last_type;
+        }
+    }
 };
