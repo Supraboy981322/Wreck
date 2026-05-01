@@ -83,6 +83,10 @@ pub const Tokenizer = struct {
                     };
                     try res.code.append(self.alloc, new);
                 }
+
+                if (Token.byte_looks_like_symbol(b))
+                    try res.code.append(self.alloc, Token.make(@constCast(&[_]u8{b})).?);
+
                 continue;
             }
             switch (b) {
