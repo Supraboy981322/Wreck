@@ -248,6 +248,21 @@ pub const Token = union(enum) {
         number:union(enum) {
             int:i256,
             uint:u256,
+        },
+
+        //these exist to match a literal 'int' (for example) to a type
+        int:void,
+        uint:void,
+        void:void,
+
+        pub fn make(raw:[]u8) ?Types {
+            const lazy_match = std.meta.stringToEnum(
+                Types, raw
+            ) orelse return null;
+            switch (lazy_match) {
+                .string, .bool, .int, .uint, .void => return lazy_match,
+                else => return null,
+            }
         }
     };
 
