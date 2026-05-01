@@ -396,4 +396,9 @@ pub const List = struct {
     ) !void {
         try self.value.append(alloc, value);
     }
+
+    pub fn get_token(self:*List, i:usize) !Token {
+        if (self.value.items.len <= i) return error.IndexOutOfBounds;
+        return .{ .type = self.value.items[i] };
+    }
 };
