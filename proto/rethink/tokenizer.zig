@@ -17,6 +17,7 @@ pub const TokenizerError = error {
     Overflow,
     InvalidCharacter,
     InvalidVariableName,
+    InvalidListFlag,
 } || std.mem.Allocator.Error
   || std.Io.Reader.DelimiterError
   || hlp.DepthTrackerError

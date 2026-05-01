@@ -98,7 +98,7 @@ pub const Block = struct {
         }
         var tok = start_tok;
         var depth:u8 = 0;
-        while (i < self.code.items.len) : (i += 1) {
+        to_next: while (i < self.code.items.len) : (i += 1) {
             tok = self.code.items[i];
             if (tok.type == .symbol) {
                 switch (tok.type.symbol) {
@@ -130,8 +130,23 @@ pub const Block = struct {
                                 };
                                 if (name.flag) |flag| {
                                     // TODO: stuff otherthan list indexing
-                                    if (match.type == .list)
-                                        match = try match.type.list.get_token(flag.list);
+                                    if (match.type == .list) switch (flag.list) {
+                                        .idx => |idx| {
+                                            match = try match.type.list.get_token(idx);
+                                        },
+                                        .keyword => |keyword| switch (keyword) {
+                                            .count => match = Token.mk_num(
+                                                usize, match.type.list.count()
+                                            ),
+                                            .splat, .@",," => {
+                                                try mem.appendSlice(
+                                                    self.alloc,
+                                                    try match.type.list.splat(self.alloc)
+                                                );
+                                                continue :to_next;
+                                            },
+                                        }
+                                    };
                                 }
                                 break :blk match;
                             },
@@ -200,7 +215,7 @@ pub const Arg = union(enum) {
     complex:[]u8, //parsed when used  TODO: advanced arg stuff
     pub const ArgKeyword = enum {
         @",,", splat, //splat
-        count, 
+        count,
     };
 
     pub fn is_splat(self:Arg) !bool {
@@ -241,7 +256,12 @@ pub const Variable = union(enum) {
         flag:?Flag = null,
 
         pub const Flag = union(enum) {
-            list:usize, //index into list
+            list:Flag.List,
+
+            pub const List = union(enum) {
+                idx:usize, //index into list
+                keyword:Arg.ArgKeyword, //stuff like 'count' and 'splat'
+            };
         };
     };
 
@@ -262,9 +282,18 @@ pub const Variable = union(enum) {
                 if (second_half[second_half.len-1] == ']') {
                     named.name.name = @constCast(first_half);
                     second_half = second_half[0..second_half.len-1];
-                    // TODO: stuff otherthan indexing a list
                     named.name.flag = .{
-                        .list = try std.fmt.parseInt(usize, second_half, 10)
+                        // TODO: stuff otherthan lists
+                        .list =
+                            if (std.fmt.parseInt(usize, second_half, 10)) |idx| .{
+                                .idx = idx
+                            } else |e| if (e == error.InvalidCharacter) .{
+                                .keyword = std.meta.stringToEnum(
+                                    Arg.ArgKeyword, second_half
+                                ) orelse
+                                    return error.InvalidListFlag,
+                            } else
+                                return e,
                     };
                 } else
                     return error.InvalidVariableName;
@@ -319,7 +348,7 @@ pub const Token = union(enum) {
         @"for",
         @"while",
         do, dowhile,
-        onerr, //basically 'catch'
+        onerr,  //basically 'catch'
         onnull, //similar to 'orelse'
 
         pub fn _is(self:Keywords, check:Keywords) bool {
