@@ -82,27 +82,8 @@ pub const Tokenizer = struct {
                 continue;
             }
             if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
-                if (mem.items.len > 0) {
-                    const raw = try mem.toOwnedSlice(alloc);
-                    const new_token = Token.make(raw).?;
-                    if (new_token.type == .keyword) if (new_token.type.keyword == .@"fn") {
-
-                        if (Token.byte_to_symbol(b)) |_|
-                            try res.code.append(
-                                self.alloc, Token.make_from_byte(b).?
-                            );
-
-                        const function = try self.collect_fn(alloc, reader, &mem);
-                        try res.to_namespace(function.name, function.token);
-                        continue;
-                    };
-                    try res.code.append(self.alloc, new_token);
-                }
-
-                if (Token.byte_looks_like_symbol(b))
-                    try res.code.append(self.alloc, Token.make_from_byte(b).?);
-
-                continue;
+                const info = try self.whitespace(alloc, reader, &res, &mem, b);
+                if (info.skip) continue;
             }
             switch (b) {
                 '"' => string = b,
@@ -191,5 +172,39 @@ pub const Tokenizer = struct {
             .name = fn_name,
             .token = .{ .type = .{ .block = block } }
         };
+    }
+
+    pub fn whitespace(
+        self:*Tokenizer,
+        alloc:std.mem.Allocator,
+        reader:*std.Io.Reader,
+        res:*Block,
+        mem:*std.ArrayList(u8),
+        b:u8
+    ) !struct{
+        skip:bool = true,
+    } {
+        if (mem.items.len > 0) {
+            const raw = try mem.toOwnedSlice(alloc);
+            const new_token = Token.make(raw).?;
+            if (new_token.type == .keyword) if (new_token.type.keyword == .@"fn") {
+
+                if (Token.byte_to_symbol(b)) |_|
+                    try res.code.append(
+                        self.alloc, Token.make_from_byte(b).?
+                    );
+
+                const function = try self.collect_fn(alloc, reader, mem);
+                try res.to_namespace(function.name, function.token);
+
+                return .{};
+            };
+            try res.code.append(self.alloc, new_token);
+        }
+
+        if (Token.byte_looks_like_symbol(b))
+            try res.code.append(self.alloc, Token.make_from_byte(b).?);
+
+        return .{};
     }
 };
