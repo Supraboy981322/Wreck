@@ -157,7 +157,7 @@ pub const Tokenizer = struct {
     ) ![]Token {
         var res:std.ArrayList(Token) = .empty;
         defer res.deinit(alloc);
-        var depth:usize = 0;
+        var depth:usize = 1;
         while (reader.takeByte() catch null) |b| {
             switch (b) {
                 start => depth += 1,
@@ -175,6 +175,7 @@ pub const Tokenizer = struct {
                         try mem.append(alloc, b);
                 },
             }
+            if (depth == 0) break;
         }
         return try res.toOwnedSlice(alloc);
     }
