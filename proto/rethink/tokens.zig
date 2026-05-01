@@ -124,10 +124,16 @@ pub const Block = struct {
                                 else => unreachable,
                             },
                             .name => |name| blk: {
-                                break :blk self.namespace.get(name.name) orelse {
+                                var match = self.namespace.get(name.name) orelse {
                                     std.debug.print("\n|{any}|\n", .{name});
                                     return error.UnknownVariable;
                                 };
+                                if (name.flag) |flag| {
+                                    // TODO: stuff otherthan list indexing
+                                    if (match.type == .list)
+                                        match = try match.type.list.get_token(flag.list);
+                                }
+                                break :blk match;
                             },
                         };
                     }
