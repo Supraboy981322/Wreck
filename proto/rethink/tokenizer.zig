@@ -113,6 +113,15 @@ pub const Tokenizer = struct {
                         try res.code.append(self.alloc, as_token);
                 },
                 '}' => return res,
+                '.' => {
+                    const next = try reader.peekByte();
+                    reader.toss(1);
+                    switch (next) {
+                        '{' => @panic("TODO: object literal"),
+                        '[' => @panic("TODO: list literal"),
+                        else => return error.MissplacedSymbol,
+                    }
+                },
                 ':' => {
                     if (label_name) |_|
                         return error.MissplacedSymbol; //colon
