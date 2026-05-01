@@ -1,4 +1,5 @@
-fn main(_:void) {
+fn main(args:string) {
+  print($args);
   arg_count("foo" "bar" "baz quz");
   block_test();
 }
