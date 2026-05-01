@@ -15,30 +15,48 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn do(_:*Interpreter, block:Block) !?Token {
+    pub fn do(_:*Interpreter, base:std.process.Init.Minimal, block:Block) !?Token {
         const alloc = block.alloc;
         if (block.namespace.get("main")) |*entry| {
             if (entry.type == .block) {
-                const main = entry.type.block;
+                var main = entry.type.block;
                 var args:std.ArrayList(Token) = .empty;
                 defer args.deinit(alloc);
                 if (main.params.len > 0) blk: {
                     if (main.params.len == 1 and main.params[0].type == .void) break :blk;
-                    for (main.params) |param| switch (param.type) {
-                        .string => {
-                            try args.append(alloc, Token.make(@constCast("\"argv1\"")).?);
+                    for (main.params, 0..) |param, i| switch (param.type) {
+                        .list => {
+                            _ = std.meta.stringToEnum(
+                                enum{ argv, args, @"_" }, param.name.?
+                            ) orelse
+                                return error.UnsupportedMainArg;
+                            var itr = base.args.iterate();
+                            while (itr.next()) |arg|
+                                try args.append(alloc, .new([]u8, try alloc.dupe(u8, arg)));
+                            var new_params:std.ArrayList(types.Param) = .empty;
+                            for (main.params[0..i]) |p|
+                                try new_params.append(alloc, p);
+                            for (args.items[i..], 0..) |_, j|
+                                try new_params.append(alloc, .{
+                                    .type = .string,
+                                    .name = @constCast(&[_]u8{@as(u8, @intCast(j + '0'))}),
+                                });
+                            if (i+1 < main.params.len)
+                                for (main.params[i..]) |p|
+                                    try new_params.append(alloc, p);
+                            main.params = try new_params.toOwnedSlice(alloc);
                         },
                         else => @panic("invalid main arg"),
                     };
                 }
                 var itr = block.namespace.iterator();
                 while (itr.next()) |name_entry| {
-                    try @constCast(entry).type.block.to_namespace(
+                    try main.to_namespace(
                         @constCast(name_entry.key_ptr.*),
                         name_entry.value_ptr.*
                     );
                 }
-                _ = try @constCast(entry).type.block.run(args.items);
+                _ = try main.run(args.items);
             } else
                 @panic("main not a label");
         } else

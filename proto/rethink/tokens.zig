@@ -235,7 +235,6 @@ pub const Variable = union(enum) {
 pub const Token = union(enum) {
     type:TokenType,
 
-
     pub const Types = std.meta.Tag(TokenType);
     pub const TokenType = union(enum) {
         string:[]u8,

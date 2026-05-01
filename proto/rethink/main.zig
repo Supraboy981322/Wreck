@@ -53,5 +53,5 @@ pub fn main(init:std.process.Init) !void {
     const res = tokens;
 
     var interpreter:@import("interpreter.zig").Interpreter = try .init(init.io, alloc);
-    _ = try interpreter.do(res);
+    _ = try interpreter.do(init.minimal, res);
 }
