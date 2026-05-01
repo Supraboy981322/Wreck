@@ -12,3 +12,9 @@ block_test: {
     print("block test");
   }
 }
+fn list_test(foo:list[string]) {
+  print("passing list directly: " $foo);
+  arg_count("keyword splat:" $foo[splat]);
+  arg_count("symbol splat:" $foo[,,]);
+  print($foo[0]);
+}
