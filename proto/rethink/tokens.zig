@@ -241,8 +241,19 @@ pub const Token = union(enum) {
 };
 
 pub const List = struct {
-    type:enum{ string, bool, int, uint, byte },
+    type:LegalTypes,
     value:std.ArrayList(Token.TokenType) = .empty,
+
+    pub const LegalTypes = enum {
+        string,
+        bool,
+        int, uint, byte,
+        DYNAMIC
+    };
+
+    pub fn init(for_type:LegalTypes) List {
+        return .{ .type = for_type };
+    }
 
     pub fn append(
         self:*List,
