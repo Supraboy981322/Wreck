@@ -147,6 +147,38 @@ pub const Tokenizer = struct {
         return res;
     }
 
+    pub fn collect_within(
+        _:*Tokenizer,
+        comptime start:u8,
+        comptime end:u8,
+        reader:*std.Io.Reader,
+        alloc:std.mem.Allocator,
+        mem:*std.ArrayList(u8),
+    ) ![]Token {
+        var res:std.ArrayList(Token) = .empty;
+        defer res.deinit(alloc);
+        var depth:usize = 0;
+        while (reader.takeByte() catch null) |b| {
+            switch (b) {
+                start => depth += 1,
+                end => depth -= 1,
+                else => {
+                    if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
+                        if (mem.items.len > 0) {
+                            const raw = try mem.toOwnedSlice(alloc);
+                            const new = (try Token.make(raw)).?;
+                            try res.append(alloc, new);
+                        }
+                        const new = (try Token.make_from_byte(b)).?;
+                        try res.append(alloc, new);
+                    } else
+                        try mem.append(alloc, b);
+                },
+            }
+        }
+        return try res.toOwnedSlice(alloc);
+    }
+
     pub fn collect_fn(
         self:*Tokenizer,
         alloc:std.mem.Allocator,
