@@ -26,6 +26,16 @@ pub fn print(args:[]Token) !void {
             .number => |num| switch (num) {
                 inline .uint, .int => |n| std.debug.print("{d} ", .{n}),
             },
+            .list => |list| {
+                for (list.value.items) |entry| switch (entry) {
+                    .string => |s| std.debug.print("{s} ", .{s}),
+                    .number => |num| switch (num) {
+                        inline .uint, .int => |n| std.debug.print("{d} ", .{n}),
+                    },
+                    .bool => |b| std.debug.print("{} ", .{b}),
+                    else => unreachable,
+                };
+            },
             else => unreachable,
         }
     }

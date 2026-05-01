@@ -4,7 +4,12 @@ pub const Builtins = @import("builtins.zig").Builtins;
 
 pub const Param = struct {
     name:?[]u8,
-    type:Token.Types,
+    type:Token.Types = .void,
+    type_hint:?Token.TypeHint = null,
+
+    pub fn skeleton(name:[]u8) Param {
+        return .{ .name = name };
+    }
 };
 
 pub const Block = struct {
@@ -108,7 +113,8 @@ pub const Block = struct {
             switch (tok.type) {
                 .variable => {
                     while (tok.type == .variable) {
-                        tok = switch (tok.type.variable) {
+                        const variable = tok.type.variable;
+                        tok = switch (variable) {
                             .arg => |a| switch (a) {
                                 .plain => |n| self.args.?[n],
                                 .keyword => |key| switch (key) {
@@ -117,9 +123,11 @@ pub const Block = struct {
                                 },
                                 else => unreachable,
                             },
-                            .name => |name| self.namespace.get(name) orelse {
-                                std.debug.print("\n|{s}|\n", .{name});
-                                return error.UnknownVariable;
+                            .name => |name| blk: {
+                                break :blk self.namespace.get(name.name) orelse {
+                                    std.debug.print("\n|{any}|\n", .{name});
+                                    return error.UnknownVariable;
+                                };
                             },
                         };
                     }
@@ -220,14 +228,41 @@ pub const Arg = union(enum) {
 
 pub const Variable = union(enum) {
     arg:Arg,
-    name:[]u8,
+    name:NamedVariable,
 
-    pub fn make(raw:[]u8) Variable {
+    pub const NamedVariable = struct {
+        name:[]u8,
+        flag:?Flag = null,
+
+        pub const Flag = union(enum) {
+            list:usize, //index into list
+        };
+    };
+
+    pub fn make(raw:[]u8) !Variable {
         return
             if (Arg.make(raw)) |match| .{
                 .arg = match
-            } else .{
-                .name = raw[if (raw[0] == '$') 1 else 0..],
+            } else blk: {
+                var named:Variable = .{
+                    .name = .{ .name = raw[if (raw[0] == '$') 1 else 0..] },
+                };
+
+                const first_half, var second_half = std.mem.cut(
+                    u8, named.name.name, "["
+                ) orelse
+                    return named;
+
+                if (second_half[second_half.len-1] == ']') {
+                    named.name.name = @constCast(first_half);
+                    second_half = second_half[0..second_half.len-1];
+                    // TODO: stuff otherthan indexing a list
+                    named.name.flag = .{
+                        .list = try std.fmt.parseInt(usize, second_half, 10)
+                    };
+                } else
+                    return error.InvalidVariableName;
+                break :blk named;
             };
     }
 };
@@ -243,7 +278,7 @@ pub const Token = union(enum) {
         symbol:Symbols,
         variable:Variable,
         keyword:Keywords,
-        list:[]TokenType,
+        list:List,
         bool:bool,
         number:union(enum) {
             int:i256,
@@ -264,6 +299,10 @@ pub const Token = union(enum) {
                 else => return null,
             }
         }
+    };
+
+    pub const TypeHint = union(enum) {
+        list:Types,
     };
 
     pub const Keywords = enum {
@@ -307,7 +346,7 @@ pub const Token = union(enum) {
         };
     }
 
-    pub fn make(raw:[]u8) ?Token {
+    pub fn make(raw:[]u8) !?Token {
         if (raw.len < 1) return null;
 
         if (to_symbol(raw)) |symbol|
@@ -316,16 +355,18 @@ pub const Token = union(enum) {
         if (to_keyword(raw)) |keyword|
             return .{ .type = .{ .keyword = keyword } };
 
-        if (raw[0] == '$')
-            return .{ .type = .{ .variable = Variable.make(raw[1..]) } };
+        if(raw.len > 1) {
+            if (raw[0] == '$')
+                return .{ .type = .{ .variable = try Variable.make(raw[1..]) } };
 
-        if (raw[0] == '"' and raw[raw.len-1] == '"')
-            return .{ .type = .{ .string = raw[1..raw.len-1] } };
+            if (raw[0] == '"' and raw[raw.len-1] == '"')
+                return .{ .type = .{ .string = raw[1..raw.len-1] } };
+        }
 
         return .{ .type = .{ .ident = raw } };
     }
 
-    pub fn make_from_byte(b:u8) ?Token {
+    pub fn make_from_byte(b:u8) !?Token {
         return make(@constCast(&[_]u8{b}));
     }
 
@@ -346,5 +387,13 @@ pub const Token = union(enum) {
 
 pub const List = struct {
     type:enum{ string, bool, int, uint },
-    value:std.ArrayList(Token.TokenType),
+    value:std.ArrayList(Token.TokenType) = .empty,
+
+    pub fn append(
+        self:*List,
+        alloc:std.mem.Allocator,
+        value:Token.TokenType
+    ) !void {
+        try self.value.append(alloc, value);
+    }
 };

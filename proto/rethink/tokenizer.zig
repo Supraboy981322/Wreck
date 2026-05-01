@@ -9,10 +9,14 @@ const Block = types.Block;
 
 pub const TokenizerError = error {
     EndOfFile,
+    BadTypeHint,
     MissplacedSymbol,
     InvalidParameterType,
     MissingParameterName,
     MissingParameterType,
+    Overflow,
+    InvalidCharacter,
+    InvalidVariableName,
 } || std.mem.Allocator.Error
   || std.Io.Reader.DelimiterError
   || hlp.DepthTrackerError
@@ -72,19 +76,25 @@ pub const Tokenizer = struct {
                 try mem.append(alloc, b);
                 continue;
             }
+
+            // TODO: refactor this for string interpolation
             if (string) |s| {
                 if (b == s) {
                     string = null;
-                    const str:Token = .{ .type = .{ .string = try mem.toOwnedSlice(alloc) } };
+                    const str:Token = .{
+                        .type = .{ .string = try mem.toOwnedSlice(alloc) }
+                    };
                     try res.code.append(self.alloc, str);
                 } else
                     try mem.append(alloc, b);
                 continue;
             }
+
             if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
                 const info = try self.whitespace(alloc, reader, &res, &mem, b);
                 if (info.skip) continue;
             }
+
             switch (b) {
                 '"' => string = b,
                 '\\' => esc = true,
@@ -105,7 +115,7 @@ pub const Tokenizer = struct {
                 '}' => return res,
                 ':' => {
                     if (label_name) |_|
-                        @panic("missplaced colon");
+                        return error.MissplacedSymbol; //colon
                     label_name = try mem.toOwnedSlice(self.alloc);
                 },
                 else => try mem.append(alloc, b),
@@ -124,31 +134,57 @@ pub const Tokenizer = struct {
             return error.EndOfFile;
         };
 
-        var param_names:std.ArrayList([]u8) = .empty;
-        defer param_names.deinit(alloc);
-
-        var param_types:std.ArrayList(Token.Types) = .empty;
-        defer param_types.deinit(alloc);
+        var params:std.ArrayList(types.Param) = .empty;
+        defer params.deinit(alloc);
 
         var c = while (reader.takeByte() catch null) |c| {
             if (std.ascii.isWhitespace(c) or c == ')') {
-                const param_type:Token.Types = Token.TokenType.make(
-                    mem.items
-                ) orelse return error.InvalidParameterType;
-                mem.clearAndFree(alloc);
-                try param_types.append(alloc, param_type);
-                if (param_types.items.len > param_names.items.len) {
-                    return error.MissingParameterName;
-                } else if (param_types.items.len < param_names.items.len) {
-                    return error.MissingParameterType;
+                var type_hint_string:?[]u8 = null;
+                if (std.mem.count(u8, mem.items, "[") > 0) blk: {
+                    _, const dumb_const_type_hint_string = std.mem.cut(
+                        u8, mem.items, "["
+                    ) orelse break :blk;
+                    type_hint_string = @constCast(dumb_const_type_hint_string);
+                    type_hint_string = type_hint_string.?[0..type_hint_string.?.len-1];
                 }
+                const param_type:Token.Types = Token.TokenType.make(
+                    if (type_hint_string) |hint|
+                        mem.items[0..mem.items.len-hint.len-2]
+                    else
+                        mem.items
+                ) orelse
+                    return error.InvalidParameterType;
+                const type_hint:?Token.TypeHint = blk: {
+                    if (type_hint_string) |hint_raw| {
+                        switch (param_type) {
+                            .list => break :blk .{
+                                .list = std.meta.stringToEnum(
+                                    Token.Types, hint_raw
+                                ) orelse
+                                    return error.BadTypeHint,
+                            },
+                            else => return error.BadTypeHint,
+                        }
+                    } else
+                        break :blk null;
+                };
+                mem.clearAndFree(alloc);
+
+                var skeleton = params.pop() orelse return error.MissingParameterName;
+                if (skeleton.type != .void)
+                    return error.MissingParameterName;
+
+                skeleton.type_hint = type_hint;
+                skeleton.type = param_type;
+
+                try params.append(alloc, skeleton);
             }
             switch (c) {
                 ')' => break try reader.peekByte(),
                 '(' => return error.MissplacedSymbol,
                 ':' => {
-                    try param_names.append(alloc,
-                        try mem.toOwnedSlice(self.alloc)
+                    try params.append(alloc,
+                        .skeleton(try mem.toOwnedSlice(self.alloc))
                     );
                 },
                 else => {
@@ -157,14 +193,6 @@ pub const Tokenizer = struct {
             }
         } else
             return error.EndOfFile;
-        var params:std.ArrayList(types.Param) = .empty;
-        defer params.deinit(alloc);
-        for (param_names.items, 0..) |p_name, i| {
-            try params.append(alloc, .{
-                .name = p_name,
-                .type = param_types.items[i],
-            });
-        }
         while (std.ascii.isWhitespace(c)) c = try reader.takeByte();
         var block:Block = try self.recurse(fn_name);
         block.params = try params.toOwnedSlice(self.alloc);
@@ -186,12 +214,12 @@ pub const Tokenizer = struct {
     } {
         if (mem.items.len > 0) {
             const raw = try mem.toOwnedSlice(alloc);
-            const new_token = Token.make(raw).?;
+            const new_token = (try Token.make(raw)).?;
             if (new_token.type == .keyword) if (new_token.type.keyword == .@"fn") {
 
                 if (Token.byte_to_symbol(b)) |_|
                     try res.code.append(
-                        self.alloc, Token.make_from_byte(b).?
+                        self.alloc, (try Token.make_from_byte(b)).?
                     );
 
                 const function = try self.collect_fn(alloc, reader, mem);
@@ -203,7 +231,7 @@ pub const Tokenizer = struct {
         }
 
         if (Token.byte_looks_like_symbol(b))
-            try res.code.append(self.alloc, Token.make_from_byte(b).?);
+            try res.code.append(self.alloc, (try Token.make_from_byte(b)).?);
 
         return .{};
     }
