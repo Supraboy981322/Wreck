@@ -315,9 +315,9 @@ pub const List = struct {
                 return error.IllegalType;
 
             for ([_]bool{
-                if (opts.expected) |expected| current_type != expected else true,
-                self.type != .DYNAMIC and self.type != current_type,
-                last_type != current_type,
+                if (opts.expected) |expected| current_type == expected else true,
+                self.type == .DYNAMIC or self.type == current_type,
+                last_type == current_type,
             }) |check|
                 if (!check) return error.TypeMissmatch;
 
