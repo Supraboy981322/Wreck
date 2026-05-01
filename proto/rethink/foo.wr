@@ -1,4 +1,4 @@
-main: {
+fn main(_:void) {
   arg_count("foo" "bar" "baz quz");
   block_test();
 }
