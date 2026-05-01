@@ -153,9 +153,10 @@ pub const Tokenizer = struct {
                             const raw = try mem.toOwnedSlice(alloc);
                             const new = (try Token.make(raw)).?;
                             try res.append(alloc, new);
+                        } if (!std.ascii.isWhitespace(b)) {
+                            const new = (try Token.make_from_byte(b)).?;
+                            try res.append(alloc, new);
                         }
-                        const new = (try Token.make_from_byte(b)).?;
-                        try res.append(alloc, new);
                     } else
                         try mem.append(alloc, b);
                 },
