@@ -142,6 +142,8 @@ pub const Token = union(enum) {
         }
     };
 
+    pub const @"void":Token = .{ .type = .{ .void = {} } };
+
     pub const TypeHint = union(enum) {
         list:Types,
     };
@@ -225,10 +227,6 @@ pub const Token = union(enum) {
 
     pub fn make_from_byte(b:u8) !?Token {
         return make(@constCast(&[_]u8{b}));
-    }
-
-    pub fn mk_void() Token {
-        return .{ .type = .{ .void = {} } };
     }
 
     pub fn new(comptime T:type, value:T) Token {
