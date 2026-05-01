@@ -74,14 +74,69 @@ pub const Tokenizer = struct {
             if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
                 if (mem.items.len > 0) {
                     const raw = try mem.toOwnedSlice(alloc);
-                    try res.code.append(self.alloc, .make(raw));
-                }
+                    const new_token = Token.make(raw).?;
+                    if (new_token.type == .keyword) if (new_token.type.keyword == .@"fn") {
 
-                if (Token.byte_looks_like_symbol(b)) {
-                    const new:Token = .{ .type = .{
-                        .symbol = Token.byte_to_symbol(b) orelse unreachable, }
+                        if (Token.byte_to_symbol(b)) |_|
+                            try res.code.append(
+                                self.alloc, Token.make(@constCast(&[_]u8{b})).?
+                            );
+
+                        const fn_name = try reader.takeDelimiter('(') orelse {
+                            return error.EndOfFile;
+                        };
+
+                        var param_names:std.ArrayList([]u8) = .empty;
+                        defer param_names.deinit(alloc);
+
+                        var param_types:std.ArrayList(Token.Types) = .empty;
+                        defer param_types.deinit(alloc);
+
+                        var c = while (reader.takeByte() catch null) |c| {
+                            if (std.ascii.isWhitespace(c) or c == ')') {
+                                const param_type:Token.Types = Token.TokenType.make(
+                                    mem.items
+                                ) orelse return error.InvalidParameterType;
+                                mem.clearAndFree(alloc);
+                                try param_types.append(alloc, param_type);
+                                if (param_types.items.len > param_names.items.len) {
+                                    return error.MissingParameterName;
+                                } else if (param_types.items.len < param_names.items.len) {
+                                    return error.MissingParameterType;
+                                }
+                            }
+                            switch (c) {
+                                ')' => break try reader.peekByte(),
+                                '(' => return error.MissplacedSymbol,
+                                ':' => {
+                                    try param_names.append(alloc,
+                                        try mem.toOwnedSlice(self.alloc)
+                                    );
+                                },
+                                else => {
+                                    try mem.append(alloc, c);
+                                },
+                            }
+                        } else
+                            return error.EndOfFile;
+                        var params:std.ArrayList(types.Param) = .empty;
+                        defer params.deinit(alloc);
+                        for (param_names.items, 0..) |p_name, i| {
+                            try params.append(alloc, .{
+                                .name = p_name,
+                                .type = param_types.items[i],
+                            });
+                        }
+                        while (std.ascii.isWhitespace(c)) c = try reader.takeByte();
+                        var block:Block = try self.recurse(fn_name);
+                        block.params = try params.toOwnedSlice(self.alloc);
+                        const as_token:Token = .{
+                            .type = .{ .block = block }
+                        };
+                        try res.to_namespace(fn_name, as_token);
+                        continue;
                     };
-                    try res.code.append(self.alloc, new);
+                    try res.code.append(self.alloc, new_token);
                 }
 
                 if (Token.byte_looks_like_symbol(b))
