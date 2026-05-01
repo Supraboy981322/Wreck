@@ -37,7 +37,7 @@ pub const Block = struct {
     }
 
     pub fn run(self:*Block, args:[]Token) !?Token {
-        self.args = args;
+        try self.load_args(args);
         var i:usize = 0;
         while (i < self.code.items.len) : (i += 1) {
             const tok = self.code.items[i];
@@ -129,6 +129,52 @@ pub const Block = struct {
             try mem.append(self.alloc, tok);
         }
         return mem.toOwnedSlice(self.alloc);
+    }
+
+    pub fn load_args(self:*Block, args_raw:?[]Token) !void {
+        if (self.name == null or self.is_label) {
+            self.args = args_raw;
+            return;
+        }
+
+        if (args_raw == null) {
+            if (self.params.len > 0)
+                return error.WrongArgCount;
+            return;
+        }
+
+        const args = args_raw.?;
+        if (args.len < 1) return;
+
+        if (std.mem.eql(u8, "main", self.name.?)) {
+            if (args.len == 1) if (args[0].type == .void) return;
+            if (args.len > 0)
+                @panic("TODO: \"juicy main\" as the rest of the Zig community calls it");
+        }
+
+        if (self.params.len != args.len) return error.WrongArgCount;
+
+        self.args = try self.arena.allocator().alloc(Token, args.len);
+
+        for (self.params, 0..) |param, i| switch (param.type) {
+            .string, .bool, .void => {
+                if (args[i].type == param.type)
+                    try self.to_namespace(param.name orelse unreachable, args[i])
+                else
+                    return error.ArgTypeMissmatch;
+            },
+            .int, .uint => {
+                if (args[i].type != .number)
+                    return error.ArgTypeMissmatch;
+                const expect = @tagName(args[i].type.number);
+                const have = @tagName(param.type);
+                if (std.mem.eql(u8, expect, have))
+                    try self.to_namespace(param.name orelse unreachable, args[i])
+                else
+                    return error.ArgTypeMissmatch;
+            },
+            else => unreachable,
+        };
     }
 };
 
