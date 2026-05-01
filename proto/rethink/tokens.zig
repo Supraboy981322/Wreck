@@ -260,6 +260,12 @@ pub const List = struct {
         alloc:std.mem.Allocator,
         value:Token.TokenType
     ) !void {
+        const new_type = std.meta.stringToEnum(
+            LegalTypes, @tagName(value)
+        ) orelse
+            return error.IllegalListType;
+        if (new_type != self.type or self.type == .DYNAMIC)
+            return error.TypeMissmatch;
         try self.value.append(alloc, value);
     }
 
