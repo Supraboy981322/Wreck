@@ -204,6 +204,12 @@ pub const Block = struct {
                 else
                     return error.ArgTypeMissmatch;
             },
+            .list => {
+                if (args[i].type == param.type)
+                    try self.to_namespace(param.name orelse unreachable, args[i])
+                else
+                    return error.ArgTypeMissmatch;
+            },
             else => unreachable,
         };
     }
