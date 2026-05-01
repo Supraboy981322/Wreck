@@ -118,23 +118,8 @@ pub const Tokenizer = struct {
                 '.' => {
                     if (mem.items.len > 0)
                         @panic("TODO: dereference into structs");
-
-                    const next = try reader.takeByte();
-                    switch (next) {
-                        '{' => @panic("TODO: object literal"),
-                        '[' => {
-                            var list:types.List = .init(.DYNAMIC);
-                            const values = try self.collect_within(
-                                '[', ']', reader, alloc, &mem
-                            );
-                            try list.append_many_fat(alloc, values);
-                            _ = try list.check_type(.{ .solidify = true });
-                            try res.code.append(
-                                alloc, .{ .type = .{ .list = list } }
-                            );
-                        },
-                        else => return error.MissplacedSymbol,
-                    }
+                    const literal = try self.dot_literal(alloc, reader, &mem);
+                    try res.code.append(alloc, literal);
                 },
                 ':' => {
                     if (label_name) |_|
@@ -178,6 +163,29 @@ pub const Tokenizer = struct {
             if (depth == 0) break;
         }
         return try res.toOwnedSlice(alloc);
+    }
+
+    pub fn dot_literal(
+        self:*Tokenizer,
+        alloc:std.mem.Allocator,
+        reader:*std.Io.Reader,
+        mem:*std.ArrayList(u8)
+    ) !Token {
+        std.debug.assert(mem.items.len == 0);
+        const literal_type = try reader.takeByte();
+        switch (literal_type) {
+            '{' => @panic("TODO: object literal"),
+            '[' => {
+                var list:types.List = .init(.DYNAMIC);
+                const values = try self.collect_within(
+                    '[', ']', reader, alloc, mem
+                );
+                try list.append_many_fat(alloc, values);
+                _ = try list.check_type(.{ .solidify = true });
+                return .{ .type = .{ .list = list } };
+            },
+            else => return error.MissplacedSymbol,
+        }
     }
 
     pub fn collect_fn(
