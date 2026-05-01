@@ -163,6 +163,11 @@ pub const Tokenizer = struct {
             }
             if (depth == 0) break;
         }
+        if (mem.items.len > 0) {
+            const raw = try mem.toOwnedSlice(alloc);
+            const new = (try Token.make(raw)).?;
+            try res.append(alloc, new);
+        }
         return try res.toOwnedSlice(alloc);
     }
 
