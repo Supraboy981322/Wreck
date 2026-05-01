@@ -114,11 +114,23 @@ pub const Tokenizer = struct {
                 },
                 '}' => return res,
                 '.' => {
-                    const next = try reader.peekByte();
-                    reader.toss(1);
+                    if (mem.items.len > 0)
+                        @panic("TODO: dereference into structs");
+
+                    const next = try reader.takeByte();
                     switch (next) {
                         '{' => @panic("TODO: object literal"),
-                        '[' => @panic("TODO: list literal"),
+                        '[' => {
+                            var list:types.List = .init(.DYNAMIC);
+                            const values = try self.collect_within(
+                                '[', ']', reader, alloc, &mem
+                            );
+                            try list.append_many_fat(alloc, values);
+                            _ = try list.check_type(.{ .solidify = true });
+                            try res.code.append(
+                                alloc, .{ .type = .{ .list = list } }
+                            );
+                        },
                         else => return error.MissplacedSymbol,
                     }
                 },
