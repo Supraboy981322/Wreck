@@ -227,7 +227,7 @@ pub const Variable = union(enum) {
             if (Arg.make(raw)) |match| .{
                 .arg = match
             } else .{
-                .name = raw[1..],
+                .name = raw[if (raw[0] == '$') 1 else 0..],
             };
     }
 };
