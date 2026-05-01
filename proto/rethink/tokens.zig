@@ -120,6 +120,7 @@ pub const Token = union(enum) {
         keyword:Keywords,
         list:List,
         bool:bool,
+        byte:u8, // TODO: arbitrary bit width (probably can use some Zig stuff for that)
         number:union(enum) {
             int:i256,
             uint:u256,
@@ -240,7 +241,7 @@ pub const Token = union(enum) {
 };
 
 pub const List = struct {
-    type:enum{ string, bool, int, uint },
+    type:enum{ string, bool, int, uint, byte },
     value:std.ArrayList(Token.TokenType) = .empty,
 
     pub fn append(
