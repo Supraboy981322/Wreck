@@ -89,7 +89,7 @@ pub const Tokenizer = struct {
                 '"' => string = b,
                 '\\' => esc = true,
                 '{' => {
-                    defer { 
+                    defer {
                         if (label_name) |_| label_name = null;
                     }
                     const block = try self.recurse(label_name);

@@ -232,7 +232,9 @@ pub const Token = union(enum) {
         };
     }
 
-    pub fn make(raw:[]u8) Token {
+    pub fn make(raw:[]u8) ?Token {
+        if (raw.len < 1) return null;
+
         if (to_symbol(raw)) |symbol|
             return .{ .type = .{ .symbol = symbol } };
 
