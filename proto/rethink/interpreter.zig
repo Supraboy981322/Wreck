@@ -24,27 +24,26 @@ pub const Interpreter = struct {
                 defer args.deinit(alloc);
                 if (main.params.len > 0) blk: {
                     if (main.params.len == 1 and main.params[0].type == .void) break :blk;
-                    for (main.params, 0..) |param, i| switch (param.type) {
+                    for (main.params) |param| switch (param.type) {
                         .list => {
                             _ = std.meta.stringToEnum(
                                 enum{ argv, args, @"_" }, param.name.?
                             ) orelse
                                 return error.UnsupportedMainArg;
+
+                            if (param.type_hint == null)
+                                return error.WrongMainArgType;
+                            if (param.type_hint.?.list != .string)
+                                return error.WrongMainArgType;
+
+                            var list:types.List = .{ .type = .string };
+
                             var itr = base.args.iterate();
                             while (itr.next()) |arg|
-                                try args.append(alloc, .new([]u8, try alloc.dupe(u8, arg)));
-                            var new_params:std.ArrayList(types.Param) = .empty;
-                            for (main.params[0..i]) |p|
-                                try new_params.append(alloc, p);
-                            for (args.items[i..], 0..) |_, j|
-                                try new_params.append(alloc, .{
-                                    .type = .string,
-                                    .name = @constCast(&[_]u8{@as(u8, @intCast(j + '0'))}),
-                                });
-                            if (i+1 < main.params.len)
-                                for (main.params[i..]) |p|
-                                    try new_params.append(alloc, p);
-                            main.params = try new_params.toOwnedSlice(alloc);
+                                try list.append(alloc, .{ .string  = try alloc.dupe(u8, arg) });
+                            try main.to_namespace(@constCast("args"), .{
+                                .type = .{ .list = list }
+                            });
                         },
                         else => @panic("invalid main arg"),
                     };
