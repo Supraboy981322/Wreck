@@ -72,8 +72,10 @@ pub const Block = struct {
                     _ = try blk.run(@constCast(&[_]Token{}));
                 },
 
-                .symbol => |symbol| if (symbol != .@";")
-                    return error.MissplacedSymbol,
+                .symbol => |symbol| if (symbol != .@";") {
+                    std.debug.print("{any}\n", .{symbol});
+                    return error.MissplacedSymbol;
+                },
 
                 else => std.debug.panic("{any}", .{tok.type}), //Block.run()
             }
