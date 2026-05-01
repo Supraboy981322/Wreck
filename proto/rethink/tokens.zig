@@ -72,39 +72,38 @@ pub const Variable = union(enum) {
     };
 
     pub fn make(raw:[]u8) !Variable {
-        return
-            if (Arg.make(raw)) |match| .{
-                .arg = match
-            } else blk: {
-                var named:Variable = .{
-                    .name = .{ .name = raw[if (raw[0] == '$') 1 else 0..] },
-                };
+        if (Arg.make(raw)) |match| 
+            return .{ .arg = match };
 
-                const first_half, var second_half = std.mem.cut(
-                    u8, named.name.name, "["
-                ) orelse
-                    return named;
+        var named:Variable = .{
+            .name = .{ .name = raw[if (raw[0] == '$') 1 else 0..] },
+        };
 
-                if (second_half[second_half.len-1] == ']') {
-                    named.name.name = @constCast(first_half);
-                    second_half = second_half[0..second_half.len-1];
-                    named.name.flag = .{
-                        // TODO: stuff otherthan lists
-                        .list =
-                            if (std.fmt.parseInt(usize, second_half, 10)) |idx| .{
-                                .idx = idx
-                            } else |e| if (e == error.InvalidCharacter) .{
-                                .keyword = std.meta.stringToEnum(
-                                    Arg.ArgKeyword, second_half
-                                ) orelse
-                                    return error.InvalidListFlag,
-                            } else
-                                return e,
-                    };
-                } else
-                    return error.InvalidVariableName;
-                break :blk named;
+        const first_half, var second_half = std.mem.cut(
+            u8, named.name.name, "["
+        ) orelse
+            return named;
+
+        if (second_half[second_half.len-1] == ']') {
+            named.name.name = @constCast(first_half);
+            second_half = second_half[0..second_half.len-1];
+            named.name.flag = .{
+                // TODO: stuff otherthan lists
+                .list =
+                    if (std.fmt.parseInt(usize, second_half, 10)) |idx| .{
+                        .idx = idx
+                    } else |e| if (e == error.InvalidCharacter) .{
+                        .keyword = std.meta.stringToEnum(
+                            Arg.ArgKeyword, second_half
+                        ) orelse
+                            return error.InvalidListFlag,
+                    } else
+                        return e,
             };
+        } else
+            return error.InvalidVariableName;
+
+        return named;
     }
 };
 

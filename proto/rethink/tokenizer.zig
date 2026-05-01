@@ -24,7 +24,6 @@ pub const TokenizerError = error {
 ;
 
 pub const Tokenizer = struct {
-    mem:std.ArrayList(u8) = .empty,
     alloc:std.mem.Allocator,
     reader:?*std.Io.Reader = null,
     arena:std.heap.ArenaAllocator,
@@ -210,9 +209,7 @@ pub const Tokenizer = struct {
         res:*Block,
         mem:*std.ArrayList(u8),
         b:u8
-    ) !struct{
-        skip:bool = true,
-    } {
+    ) !struct{ skip:bool = true } {
         if (mem.items.len > 0) {
             const raw = try mem.toOwnedSlice(alloc);
             const new_token = (try Token.make(raw)).?;
