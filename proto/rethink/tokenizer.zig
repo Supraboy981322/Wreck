@@ -8,7 +8,15 @@ const Arg = types.Arg;
 const Block = types.Block;
 
 pub const TokenizerError = error {
-} || std.mem.Allocator.Error;
+    EndOfFile,
+    MissplacedSymbol,
+    InvalidParameterType,
+    MissingParameterName,
+    MissingParameterType,
+} || std.mem.Allocator.Error
+  || std.Io.Reader.DelimiterError
+  || hlp.DepthTrackerError
+;
 
 pub const Tokenizer = struct {
     mem:std.ArrayList(u8) = .empty,
