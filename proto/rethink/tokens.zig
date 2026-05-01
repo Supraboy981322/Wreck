@@ -243,6 +243,7 @@ pub const Token = union(enum) {
         symbol:Symbols,
         variable:Variable,
         keyword:Keywords,
+        list:[]TokenType,
         bool:bool,
         number:union(enum) {
             int:i256,
@@ -259,7 +260,7 @@ pub const Token = union(enum) {
                 Types, raw
             ) orelse return null;
             switch (lazy_match) {
-                .string, .bool, .int, .uint, .void => return lazy_match,
+                .string, .bool, .int, .uint, .void, .list => return lazy_match,
                 else => return null,
             }
         }
@@ -327,4 +328,19 @@ pub const Token = union(enum) {
     pub fn mk_void() Token {
         return .{ .type = .{ .void = {} } };
     }
+
+    pub fn new(comptime T:type, value:T) Token {
+        return switch (T) {
+            []u8, []const u8 => .{ .type = .{ .string = value } },
+            else => switch (@typeInfo(T)) {
+                .Int, .Float, .ComptimeInt, .ComptimeFloat => mk_num(T, value),
+                else => @compileError("unsupported type for new() helper")
+            }
+        };
+    }
+};
+
+pub const List = struct {
+    type:enum{ string, bool, int, uint },
+    value:std.ArrayList(Token.TokenType),
 };
