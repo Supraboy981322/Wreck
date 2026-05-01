@@ -44,7 +44,7 @@ pub const Tokenizer = struct {
         var mem:std.ArrayList(u8) = .empty;
         defer mem.deinit(alloc);
 
-        var res:Block = .init(self.alloc, name);
+        var res:Block = .init(self.alloc, name, null, true);
 
         var function:?Block = null;
         _ = &function; // NOTE: may need this
