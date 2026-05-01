@@ -2,20 +2,29 @@ const std = @import("std");
 
 pub const Builtins = @import("builtins.zig").Builtins;
 
+pub const Param = struct {
+    name:?[]u8,
+    type:Token.Types,
+};
+
 pub const Block = struct {
+    params:[]Param,
     args:?[]Token = null,
     name:?[]u8, //null for root
     code:std.ArrayList(Token), //so I can iterate backwords, popping off of it as I go
     namespace:std.StringHashMap(Token),
     alloc:std.mem.Allocator,
     arena:std.heap.ArenaAllocator,
-    pub fn init(alloc:std.mem.Allocator, name:?[]u8) Block {
+    is_label:bool = true,
+    pub fn init(alloc:std.mem.Allocator, name:?[]u8, params:?[]Param, is_fn:bool) Block {
         return .{
             .namespace = .init(alloc),
             .alloc = alloc,
             .arena = .init(alloc),
             .name = name,
             .code = .empty,
+            .params = params orelse @constCast(&[_]Param{}),
+            .is_label = !is_fn,
         };
     }
     pub fn to_namespace(self:*Block, name:[]u8, thing:Token) !void {

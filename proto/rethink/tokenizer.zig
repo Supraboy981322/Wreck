@@ -96,7 +96,8 @@ pub const Tokenizer = struct {
                     defer {
                         if (label_name) |_| label_name = null;
                     }
-                    const block = try self.recurse(label_name);
+                    var block = try self.recurse(label_name);
+                    block.is_label = label_name != null;
                     const as_token:Token = .{
                         .type = .{ .block = block }
                     };
