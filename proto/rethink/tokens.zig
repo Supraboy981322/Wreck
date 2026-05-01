@@ -325,6 +325,10 @@ pub const Token = union(enum) {
         return .{ .type = .{ .ident = raw } };
     }
 
+    pub fn make_from_byte(b:u8) ?Token {
+        return make(@constCast(&[_]u8{b}));
+    }
+
     pub fn mk_void() Token {
         return .{ .type = .{ .void = {} } };
     }
