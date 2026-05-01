@@ -54,9 +54,6 @@ pub const Tokenizer = struct {
 
         var res:Block = .init(self.alloc, name, null, true);
 
-        var function:?Block = null;
-        _ = &function; // NOTE: may need this
-
         var depth_tracker:hlp.DepthTracker(u8) = try .init();
         _ = &depth_tracker; // NOTE: may need this
 
@@ -89,59 +86,8 @@ pub const Tokenizer = struct {
                             try res.code.append(
                                 self.alloc, Token.make(@constCast(&[_]u8{b})).?
                             );
-
-                        const fn_name = try reader.takeDelimiter('(') orelse {
-                            return error.EndOfFile;
-                        };
-
-                        var param_names:std.ArrayList([]u8) = .empty;
-                        defer param_names.deinit(alloc);
-
-                        var param_types:std.ArrayList(Token.Types) = .empty;
-                        defer param_types.deinit(alloc);
-
-                        var c = while (reader.takeByte() catch null) |c| {
-                            if (std.ascii.isWhitespace(c) or c == ')') {
-                                const param_type:Token.Types = Token.TokenType.make(
-                                    mem.items
-                                ) orelse return error.InvalidParameterType;
-                                mem.clearAndFree(alloc);
-                                try param_types.append(alloc, param_type);
-                                if (param_types.items.len > param_names.items.len) {
-                                    return error.MissingParameterName;
-                                } else if (param_types.items.len < param_names.items.len) {
-                                    return error.MissingParameterType;
-                                }
-                            }
-                            switch (c) {
-                                ')' => break try reader.peekByte(),
-                                '(' => return error.MissplacedSymbol,
-                                ':' => {
-                                    try param_names.append(alloc,
-                                        try mem.toOwnedSlice(self.alloc)
-                                    );
-                                },
-                                else => {
-                                    try mem.append(alloc, c);
-                                },
-                            }
-                        } else
-                            return error.EndOfFile;
-                        var params:std.ArrayList(types.Param) = .empty;
-                        defer params.deinit(alloc);
-                        for (param_names.items, 0..) |p_name, i| {
-                            try params.append(alloc, .{
-                                .name = p_name,
-                                .type = param_types.items[i],
-                            });
-                        }
-                        while (std.ascii.isWhitespace(c)) c = try reader.takeByte();
-                        var block:Block = try self.recurse(fn_name);
-                        block.params = try params.toOwnedSlice(self.alloc);
-                        const as_token:Token = .{
-                            .type = .{ .block = block }
-                        };
-                        try res.to_namespace(fn_name, as_token);
+                        const function = try self.collect_fn(alloc, reader, &mem);
+                        try res.to_namespace(function.name, function.token);
                         continue;
                     };
                     try res.code.append(self.alloc, new_token);
@@ -179,5 +125,65 @@ pub const Tokenizer = struct {
             }
         }
         return res;
+    }
+
+    pub fn collect_fn(
+        self:*Tokenizer,
+        alloc:std.mem.Allocator,
+        reader:*std.Io.Reader,
+        mem:*std.ArrayList(u8),
+    ) !struct{ name:[]u8, token:Token } {
+        const fn_name = try reader.takeDelimiter('(') orelse {
+            return error.EndOfFile;
+        };
+
+        var param_names:std.ArrayList([]u8) = .empty;
+        defer param_names.deinit(alloc);
+
+        var param_types:std.ArrayList(Token.Types) = .empty;
+        defer param_types.deinit(alloc);
+
+        var c = while (reader.takeByte() catch null) |c| {
+            if (std.ascii.isWhitespace(c) or c == ')') {
+                const param_type:Token.Types = Token.TokenType.make(
+                    mem.items
+                ) orelse return error.InvalidParameterType;
+                mem.clearAndFree(alloc);
+                try param_types.append(alloc, param_type);
+                if (param_types.items.len > param_names.items.len) {
+                    return error.MissingParameterName;
+                } else if (param_types.items.len < param_names.items.len) {
+                    return error.MissingParameterType;
+                }
+            }
+            switch (c) {
+                ')' => break try reader.peekByte(),
+                '(' => return error.MissplacedSymbol,
+                ':' => {
+                    try param_names.append(alloc,
+                        try mem.toOwnedSlice(self.alloc)
+                    );
+                },
+                else => {
+                    try mem.append(alloc, c);
+                },
+            }
+        } else
+            return error.EndOfFile;
+        var params:std.ArrayList(types.Param) = .empty;
+        defer params.deinit(alloc);
+        for (param_names.items, 0..) |p_name, i| {
+            try params.append(alloc, .{
+                .name = p_name,
+                .type = param_types.items[i],
+            });
+        }
+        while (std.ascii.isWhitespace(c)) c = try reader.takeByte();
+        var block:Block = try self.recurse(fn_name);
+        block.params = try params.toOwnedSlice(self.alloc);
+        return .{
+            .name = fn_name,
+            .token = .{ .type = .{ .block = block } }
+        };
     }
 };
