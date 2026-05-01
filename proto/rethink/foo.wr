@@ -1,9 +1,8 @@
-fn main(args:string) {
-  print($args);
+fn main(_:list) {
   arg_count("foo" "bar" "baz quz");
   block_test();
 }
-arg_count: {
+fn arg_count(_:string _:string _:string) {
   print($[count]);
 }
 block_test: {
