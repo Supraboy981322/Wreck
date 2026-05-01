@@ -1,4 +1,5 @@
-fn main(_:list) {
+fn main(args:list[string]) {
+  print($args[0]);
   arg_count("foo" "bar" "baz quz");
   block_test();
 }
