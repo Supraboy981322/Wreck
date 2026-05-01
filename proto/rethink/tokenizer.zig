@@ -84,8 +84,9 @@ pub const Tokenizer = struct {
 
                         if (Token.byte_to_symbol(b)) |_|
                             try res.code.append(
-                                self.alloc, Token.make(@constCast(&[_]u8{b})).?
+                                self.alloc, Token.make_from_byte(b).?
                             );
+
                         const function = try self.collect_fn(alloc, reader, &mem);
                         try res.to_namespace(function.name, function.token);
                         continue;
@@ -94,7 +95,7 @@ pub const Tokenizer = struct {
                 }
 
                 if (Token.byte_looks_like_symbol(b))
-                    try res.code.append(self.alloc, Token.make(@constCast(&[_]u8{b})).?);
+                    try res.code.append(self.alloc, Token.make_from_byte(b).?);
 
                 continue;
             }
