@@ -4,15 +4,18 @@ fn main(args:list[string]) {
   block_test();
   list_literal();
 }
+
 arg_count: {
   print("arg count:" $[count]);
 }
+
 block_test: {
   {}
   {
     print("block test");
   }
 }
+
 fn list_test(foo:list[string]) {
     print("passing list directly: " $foo);
 
@@ -22,6 +25,7 @@ fn list_test(foo:list[string]) {
 
     print("indexing:" $foo[0]);
 }
+
 fn list_literal() {
   print("list literal" .[ "foo" "bar" "baz" ]);
   arg_count("list literal" .[ "foo" "bar" "baz" ]);
