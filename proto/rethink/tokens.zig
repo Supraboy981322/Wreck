@@ -281,6 +281,15 @@ pub const List = struct {
         return try res.toOwnedSlice(alloc);
     }
 
+    pub fn append_many_fat(
+        self:*List,
+        alloc:std.mem.Allocator,
+        values:[]Token
+    ) !void {
+        for (values) |v|
+            try self.value.append(alloc, v.type);
+    }
+
     pub fn get_token(self:*List, i:usize) !Token {
         if (self.count() <= i) return error.IndexOutOfBounds;
         return .{ .type = self.value.items[i] };
