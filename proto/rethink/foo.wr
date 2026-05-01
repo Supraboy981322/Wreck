@@ -2,6 +2,7 @@ fn main(args:list[string]) {
   list_test($args);
   arg_count("foo" "bar" "baz quz");
   block_test();
+  list_literal();
 }
 arg_count: {
   print("arg count:" $[count]);
@@ -20,4 +21,8 @@ fn list_test(foo:list[string]) {
     arg_count("symbol splat:" $foo[,,]);
 
     print("indexing:" $foo[0]);
+}
+fn list_literal() {
+  print("list literal" .[ "foo" "bar" "baz" ]);
+  arg_count("list literal" .[ "foo" "bar" "baz" ]);
 }
