@@ -242,6 +242,7 @@ pub const Token = union(enum) {
         symbol:Symbols,
         variable:Variable,
         keyword:Keywords,
+        bool:bool,
         number:union(enum) {
             int:i256,
             uint:u256,
