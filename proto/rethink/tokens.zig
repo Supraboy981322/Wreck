@@ -448,8 +448,20 @@ pub const List = struct {
         try self.value.append(alloc, value);
     }
 
+    pub fn count(self:*List) usize {
+        return self.value.items.len;
+    }
+
+    pub fn splat(self:*List, alloc:std.mem.Allocator) ![]Token {
+        var res:std.ArrayList(Token) = .empty;
+        defer res.deinit(alloc);
+        for (self.value.items) |entry|
+            try res.append(alloc, .{ .type = entry });
+        return try res.toOwnedSlice(alloc);
+    }
+
     pub fn get_token(self:*List, i:usize) !Token {
-        if (self.value.items.len <= i) return error.IndexOutOfBounds;
+        if (self.count() <= i) return error.IndexOutOfBounds;
         return .{ .type = self.value.items[i] };
     }
 };
