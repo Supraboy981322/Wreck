@@ -313,6 +313,22 @@ pub const Token = union(enum) {
 
     pub const Keywords = enum {
         @"fn",
+
+        // TODO: everything after this line
+        @"if", @"?",
+        @"for",
+        @"while",
+        do, dowhile,
+        onerr, //basically 'catch'
+        onnull, //similar to 'orelse'
+
+        pub fn _is(self:Keywords, check:Keywords) bool {
+            return switch (check) {
+                .@"if", .@"?" => self == .@"if" or self == .@"?",
+                .do, .dowhile => self == .do or self == .dowhile,
+                else => check == self
+            };
+        }
     };
 
     pub const Symbols = enum {
