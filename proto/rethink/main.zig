@@ -46,11 +46,11 @@ pub fn main(init:std.process.Init) !void {
     const reader = &file_reader.interface;
 
     var tokenizer:@import("tokenizer.zig").Tokenizer = try .init(alloc);
-    const tokens = try tokenizer.do(reader, null);
+    var tokens = try tokenizer.do(reader, null);
 
     var finalizer:@import("finalizer.zig").Finalizer = try .init(alloc);
-    const res = try finalizer.do(tokens);
+    _ = try finalizer.do(&tokens);
 
     var interpreter:@import("interpreter.zig").Interpreter = try .init(init.io, alloc);
-    _ = try interpreter.do(init.minimal, res);
+    _ = try interpreter.do(init.minimal, tokens);
 }

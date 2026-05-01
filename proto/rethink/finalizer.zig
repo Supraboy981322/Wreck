@@ -6,17 +6,30 @@ pub const Finalizer = struct {
         return .{};
     }
 
-    pub fn do(_:*Finalizer, block:types.Block) !types.Block {
-        //var itr = block.namespace.iterator();
-        //while (itr.next()) |name_entry| {
-        //    if (name_entry.value_ptr.*.type == .block) {
-        //        var entry_block = name_entry.type.block;
-        //        try entry_block.to_namespace(
-        //            @constCast(name_entry.key_ptr.*),
-        //            name_entry.value_ptr.*
-        //        );
-        //    }
-        //}
-        return block;
+    pub fn recurse(
+        self:*Finalizer,
+        block:*types.Block,
+        parent:?*types.Block
+    ) !types.Block {
+        var block_itr = block.namespace.iterator();
+        while (block_itr.next()) |entry| {
+            _ = switch (entry.value_ptr.*.type) {
+                .block => |*blk| try self.recurse(blk, block),
+                else => {},
+            };
+        }
+        if (parent) |p| {
+            var parent_itr = p.namespace.iterator();
+            while (parent_itr.next()) |entry| {
+                const name = @constCast(entry.key_ptr.*);
+                const value = entry.value_ptr.*;
+                try block.to_namespace(name, value);
+            }
+        }
+        return block.*;
+    }
+
+    pub fn do(self:*Finalizer, block:*types.Block) !types.Block {
+        return try self.recurse(block, null);
     }
 };
