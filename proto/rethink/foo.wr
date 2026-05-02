@@ -33,7 +33,18 @@ fn list_literal() {
 }
 
 fn var_test() {
+  print("declare 'foo'");
   set foo = "bar";
+  print("'foo' is" $foo);
+
+  print("declare 'baz'");
   let baz = "qux";
-  print($foo $baz);
+  print("'baz' is" $baz);
+
+  print("assign 'foo'");
+  $foo = "buzz";
+  print("'foo' is" $foo);
+
+  print("print both");
+  print("variable test:" $foo $baz);
 }
