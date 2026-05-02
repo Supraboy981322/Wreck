@@ -104,7 +104,7 @@ pub const Block = struct {
         try self.load_args(args);
         var i:usize = 0;
         while (i < self.code.items.len) : (i += 1) {
-            const tok = self.code.items[i];
+            var tok = self.code.items[i];
             switch (tok.type) {
 
                 .ident => |ident| {
@@ -140,10 +140,35 @@ pub const Block = struct {
                     std.debug.print("{any}\n", .{symbol});
                     return error.MissplacedSymbol;
                 },
-                .variable => |variable| switch (variable) {
+                .variable => |variable| switch (variable.value) {
                     .declaration => |declaration| {
                         // TODO: refactor namespace to track var type (set vs let)
                         try self.to_namespace(declaration.name, .{ .type = declaration.value.* });
+                    },
+                    .name => |name| {
+                        if (self.code.items.len <= i+2)
+                            return error.EndOfFile;
+                        i += 1;
+                        tok = self.code.items[i];
+                        i += 1;
+                        for ([_]bool{
+                            tok.type == .symbol,
+                            tok.type.symbol == .@"=",
+                        }) |check|
+                            if (!check) return error.UnexpectedToken;
+                        tok = self.code.items[i];
+                        const assignee = (try self.resolve_var(variable))[0];
+                        const assigner = if (tok.type == .variable) blk: {
+                            const resolved = try self.resolve_var(tok.type.variable);
+                            if (resolved.len > 1) return error.InvalidAssignment; // TODO: splat into set of vars
+                            break :blk resolved[0];
+                        } else
+                            tok;
+                        const have = @intFromEnum(assigner.type);
+                        const want = @intFromEnum(assignee.type);
+                        if (have != want) return error.TypeMissmatch;
+                        const original = self.namespace.getPtr(name.name) orelse unreachable; //uncaught
+                        original.* = assigner;
                     },
                     else => return error.UnexpectedToken,
                 },
