@@ -234,7 +234,7 @@ pub const Block = struct {
         }
         var tok = start_tok;
         var depth:u8 = 0;
-        to_next: while (i < self.code.items.len) : (i += 1) {
+        while (i < self.code.items.len) : (i += 1) {
             tok = self.code.items[i];
             if (tok.type == .symbol) {
                 switch (tok.type.symbol) {
