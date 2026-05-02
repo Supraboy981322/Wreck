@@ -280,6 +280,52 @@ pub const Tokenizer = struct {
         };
     }
 
+    pub fn collect_var(
+        self:*Tokenizer,
+        alloc:std.mem.Allocator,
+        reader:*std.Io.Reader,
+        _:*Block,
+        mem:*std.ArrayList(u8),
+        var_type:Token.Keywords
+    ) !CollectResult {
+        const matched_type = std.meta.stringToEnum(
+            Variable.Type, @tagName(var_type)
+        ) orelse unreachable; //invalid variable declaration type passed
+        var name:?[]u8 = null;
+        var symbol:?Token.Symbols = null;
+
+        while (std.ascii.isWhitespace(reader.peekByte() catch 0)) reader.toss(1);
+        while (reader.takeByte() catch null) |b| {
+            if (std.ascii.isWhitespace(b) or b == ';') if (mem.items.len > 0) {
+                const raw = try mem.toOwnedSlice(self.alloc);
+                if (name == null)
+                    name = raw
+                else if (symbol == null) {
+                    symbol = std.meta.stringToEnum(
+                        Token.Symbols, raw
+                    ) orelse {
+                        return error.InvalidSymbol;
+                    };
+                } else {
+                    const value = try self.alloc.create(Token.TokenType);
+                    value.* = try Token.TokenType.new(raw);
+                    const collected:CollectResult = .{
+                        .name = name.?,
+                        .token = .{ .type = .{ .variable = .{ .declaration = .{
+                            .name = name.?,
+                            .value = value,
+                            .type = matched_type,
+                        }}}}, // TODO: maybe I should refactor this struct
+                    };
+                    return collected;
+                }
+                continue;
+            };
+            try mem.append(alloc, b);
+        }
+        return error.EndOfFile;
+    }
+
     pub fn whitespace(
         self:*Tokenizer,
         alloc:std.mem.Allocator,
