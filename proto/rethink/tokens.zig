@@ -157,6 +157,8 @@ pub const Token = union(enum) {
 
     pub const Keywords = enum {
         @"fn",
+        
+        set, let,
 
         // TODO: everything after this line
         @"if", @"?",
@@ -178,6 +180,8 @@ pub const Token = union(enum) {
     pub const Symbols = enum {
         @";",
         @"(", @")",
+
+        @"=",
 
         @"@", @"#", // TODO: identifier for builtins and calling external code
     };
