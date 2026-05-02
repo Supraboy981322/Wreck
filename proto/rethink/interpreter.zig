@@ -23,6 +23,7 @@ pub const Interpreter = struct {
         const alloc = block.alloc;
         if (block.namespace.get("main")) |*entry| {
             if (entry.type == .block) {
+                errdefer std.debug.print("root\n", .{});
                 var main = entry.type.block;
                 var args:std.ArrayList(Token) = .empty;
                 defer args.deinit(alloc);
@@ -98,6 +99,8 @@ pub const Block = struct {
     }
 
     pub fn run(self:*Block, args:[]Token) !?Token {
+        errdefer std.debug.print("|{s}| <- ", .{self.name orelse "[unnamed]"});
+
         try self.load_args(args);
         var i:usize = 0;
         while (i < self.code.items.len) : (i += 1) {
