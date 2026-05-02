@@ -137,6 +137,13 @@ pub const Block = struct {
                     std.debug.print("{any}\n", .{symbol});
                     return error.MissplacedSymbol;
                 },
+                .variable => |variable| switch (variable) {
+                    .declaration => |declaration| {
+                        // TODO: refactor namespace to track var type (set vs let)
+                        try self.to_namespace(declaration.name, .{ .type = declaration.value.* });
+                    },
+                    else => return error.UnexpectedToken,
+                },
 
                 else => std.debug.panic("{any}", .{tok.type}), //Block.run()
             }
@@ -206,6 +213,7 @@ pub const Block = struct {
                                 }
                                 break :blk match;
                             },
+                            else => unreachable,
                         };
                     }
                 },

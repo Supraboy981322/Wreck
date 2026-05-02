@@ -335,19 +335,29 @@ pub const Tokenizer = struct {
         b:u8
     ) !struct{ skip:bool = true } {
         if (mem.items.len > 0) {
-            const raw = try mem.toOwnedSlice(alloc);
+            const raw = try mem.toOwnedSlice(self.alloc);
             const new_token = (try Token.make(raw)).?;
-            if (new_token.type == .keyword) if (new_token.type.keyword == .@"fn") {
+            if (new_token.type == .keyword) switch (new_token.type.keyword) {
+                .@"fn" => {
 
-                if (Token.byte_to_symbol(b)) |_|
-                    try res.code.append(
-                        self.alloc, (try Token.make_from_byte(b)).?
-                    );
+                    if (Token.byte_to_symbol(b)) |_|
+                        try res.code.append(
+                            self.alloc, (try Token.make_from_byte(b)).?
+                        );
 
-                const function = try self.collect_fn(alloc, reader, mem);
-                try res.to_namespace(function.name, function.token);
+                    const function = try self.collect_fn(alloc, reader, mem);
+                    try res.to_namespace(function.name, function.token);
 
-                return .{};
+                    return .{};
+                },
+                .set, .let => |var_type| {
+                    if (!std.ascii.isWhitespace(b))
+                        return error.UnexpectedByte;
+                    const new_var = try self.collect_var(alloc, reader, res, mem, var_type);
+                    try res.code.append(self.alloc, new_var.token);
+                    return .{};
+                },
+                else => {},
             };
             try res.code.append(self.alloc, new_token);
         }
