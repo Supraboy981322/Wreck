@@ -91,7 +91,7 @@ pub const Tokenizer = struct {
                 if (b == s) {
                     string = null;
                     const str:Token = .{
-                        .type = .{ .string = try mem.toOwnedSlice(alloc) }
+                        .type = .{ .string = try mem.toOwnedSlice(self.alloc) }
                     };
                     try res.code.append(self.alloc, str);
                 } else
@@ -126,7 +126,7 @@ pub const Tokenizer = struct {
                     if (mem.items.len > 0)
                         @panic("TODO: dereference into structs");
                     const literal = try self.dot_literal(alloc, reader, &mem);
-                    try res.code.append(alloc, literal);
+                    try res.code.append(self.alloc, literal);
                 },
                 ':' => {
                     if (label_name) |_|
@@ -140,7 +140,7 @@ pub const Tokenizer = struct {
     }
 
     pub fn collect_within(
-        _:*Tokenizer,
+        self:*Tokenizer,
         comptime start:u8,
         comptime end:u8,
         reader:*std.Io.Reader,
@@ -157,7 +157,7 @@ pub const Tokenizer = struct {
                 else => {
                     if (std.ascii.isWhitespace(b) or Token.byte_looks_like_symbol(b)) {
                         if (mem.items.len > 0) {
-                            const raw = try mem.toOwnedSlice(alloc);
+                            const raw = try mem.toOwnedSlice(self.alloc);
                             const new = (try Token.make(raw)).?;
                             try res.append(alloc, new);
                         } if (!std.ascii.isWhitespace(b)) {
@@ -171,11 +171,11 @@ pub const Tokenizer = struct {
             if (depth == 0) break;
         }
         if (mem.items.len > 0) {
-            const raw = try mem.toOwnedSlice(alloc);
+            const raw = try mem.toOwnedSlice(self.alloc);
             const new = (try Token.make(raw)).?;
-            try res.append(alloc, new);
+            try res.append(self.alloc, new);
         }
-        return try res.toOwnedSlice(alloc);
+        return try res.toOwnedSlice(self.alloc);
     }
 
     pub fn dot_literal(
@@ -193,7 +193,7 @@ pub const Tokenizer = struct {
                 const values = try self.collect_within(
                     '[', ']', reader, alloc, mem
                 );
-                try list.append_many_fat(alloc, values);
+                try list.append_many_fat(self.alloc, values);
                 _ = try list.check_type(.{ .solidify = true });
                 return .{ .type = .{ .list = list } };
             },
@@ -255,13 +255,13 @@ pub const Tokenizer = struct {
                 skeleton.type_hint = type_hint;
                 skeleton.type = param_type;
 
-                try params.append(alloc, skeleton);
+                try params.append(self.alloc, skeleton);
             }
             switch (c) {
                 ')' => break try reader.peekByte(),
                 '(' => return error.MissplacedSymbol,
                 ':' => {
-                    try params.append(alloc,
+                    try params.append(self.alloc,
                         .skeleton(try mem.toOwnedSlice(self.alloc))
                     );
                 },
