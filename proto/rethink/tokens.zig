@@ -53,14 +53,18 @@ pub const Arg = union(enum) {
     }
 };
 
-pub const Variable = union(enum) {
-    arg:Arg,
-    name:NamedVariable,
-    declaration:struct {
-        name:[]u8,
-        value:*Token.TokenType,
-        type:Type,
-    },
+pub const Variable = struct {
+    type:?Type = null,
+    value:Value,
+
+    pub const Value = union(enum) {
+        arg:Arg,
+        name:NamedVariable,
+        declaration:struct {
+            name:[]u8,
+            value:*Token.TokenType,
+        },
+    };
 
     pub const Type = enum { set, let };
 
@@ -80,21 +84,21 @@ pub const Variable = union(enum) {
 
     pub fn make(raw:[]u8) !Variable {
         if (Arg.make(raw)) |match| 
-            return .{ .arg = match };
+            return .{ .value = .{ .arg = match } };
 
         var named:Variable = .{
-            .name = .{ .name = raw[if (raw[0] == '$') 1 else 0..] },
+            .value = .{ .name = .{ .name = raw[if (raw[0] == '$') 1 else 0..] } },
         };
 
         const first_half, var second_half = std.mem.cut(
-            u8, named.name.name, "["
+            u8, named.value.name.name, "["
         ) orelse
             return named;
 
         if (second_half[second_half.len-1] == ']') {
-            named.name.name = @constCast(first_half);
+            named.value.name.name = @constCast(first_half);
             second_half = second_half[0..second_half.len-1];
-            named.name.flag = .{
+            named.value.name.flag = .{
                 // TODO: stuff otherthan lists
                 .list =
                     if (std.fmt.parseInt(usize, second_half, 10)) |idx| .{

@@ -311,11 +311,13 @@ pub const Tokenizer = struct {
                     value.* = try Token.TokenType.new(raw);
                     const collected:CollectResult = .{
                         .name = name.?,
-                        .token = .{ .type = .{ .variable = .{ .declaration = .{
-                            .name = name.?,
-                            .value = value,
+                        .token = .{ .type = .{ .variable = .{
                             .type = matched_type,
-                        }}}}, // TODO: maybe I should refactor this struct
+                            .value = .{ .declaration = .{
+                                .name = name.?, 
+                                .value = value,
+                            }}
+                        }}}, // TODO: maybe I should refactor this struct
                     };
                     return collected;
                 }
