@@ -1,4 +1,5 @@
 fn main(args:list[string]) {
+  var_test();
   list_test($args);
   arg_count("foo" "bar" "baz quz");
   block_test();
@@ -29,4 +30,10 @@ fn list_test(foo:list[string]) {
 fn list_literal() {
   print("list literal" .[ "foo" "bar" "baz" ]);
   arg_count("list literal" .[ "foo" "bar" "baz" ]);
+}
+
+fn var_test() {
+  set foo = "bar";
+  let baz = "qux";
+  print($foo $baz);
 }
