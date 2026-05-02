@@ -147,6 +147,10 @@ pub const Token = union(enum) {
                 else => return null,
             }
         }
+        // TODO: rename this
+        pub fn new(raw:[]u8) !TokenType {
+            return (try Token.make(raw) orelse unreachable).type;
+        }
     };
 
     pub const @"void":Token = .{ .type = .{ .void = {} } };
