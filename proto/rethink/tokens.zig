@@ -56,6 +56,13 @@ pub const Arg = union(enum) {
 pub const Variable = union(enum) {
     arg:Arg,
     name:NamedVariable,
+    declaration:struct {
+        name:[]u8,
+        value:*Token.TokenType,
+        type:Type,
+    },
+
+    pub const Type = enum { set, let };
 
     pub const NamedVariable = struct {
         name:[]u8,
