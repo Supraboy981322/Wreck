@@ -32,6 +32,11 @@ pub const Tokenizer = struct {
     reader:?*std.Io.Reader = null,
     arena:std.heap.ArenaAllocator,
 
+    pub const CollectResult = struct {
+        name:[]u8,
+        token:Token,
+    };
+
     pub fn init(alloc:std.mem.Allocator) !Tokenizer {
         const foo:Tokenizer = .{
             .alloc = alloc,
@@ -201,7 +206,7 @@ pub const Tokenizer = struct {
         alloc:std.mem.Allocator,
         reader:*std.Io.Reader,
         mem:*std.ArrayList(u8),
-    ) !struct{ name:[]u8, token:Token } {
+    ) !CollectResult {
         const fn_name = try reader.takeDelimiter('(') orelse {
             return error.EndOfFile;
         };
