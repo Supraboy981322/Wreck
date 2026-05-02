@@ -20,6 +20,8 @@ pub const TokenizerError = error {
     InvalidListFlag,
     TypeMissmatch,
     IllegalType,
+    UnexpectedByte,
+    InvalidSymbol,
 } || std.mem.Allocator.Error
   || std.Io.Reader.DelimiterError
   || hlp.DepthTrackerError
