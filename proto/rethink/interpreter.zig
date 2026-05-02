@@ -179,6 +179,51 @@ pub const Block = struct {
         return null;
     }
 
+    pub fn resolve_var(self:*Block, origin:Variable) ![]Token {
+        var token:Token = .{ .type = .{ .variable = origin } };
+        while (token.type == .variable) {
+            const variable = token.type.variable;
+            token = switch (variable.value) {
+                .arg => |a| switch (a) {
+                    .plain => |n| self.args.?[n],
+                    .keyword => |key| switch (key) {
+                        .@"count" => Token.mk_num(usize, self.args.?.len),
+                        .@",,", .splat => @panic("TODO: splat args"),
+                    },
+                    else => unreachable,
+                },
+                .name => |name| blk: {
+                    var match = self.namespace.get(name.name) orelse {
+                        std.debug.print("\n|{any}|\n", .{name});
+                        return error.UnknownVariable;
+                    };
+                    if (name.flag) |flag| {
+                        // TODO: stuff otherthan list indexing
+                        if (match.type == .list) switch (flag.list) {
+                            .idx => |idx| {
+                                break :blk try match.type.list.get_token(idx);
+                            },
+                            .keyword => |keyword| switch (keyword) {
+                                .count => return @constCast(&[_]Token{Token.mk_num(
+                                    usize, match.type.list.count()
+                                )}),
+                                .splat, .@",," => {
+                                    var m = self.namespace.get(name.name) orelse {
+                                        return error.UnknownVariable;
+                                    };
+                                    return try m.type.list.splat(self.alloc);
+                                },
+                            }
+                        };
+                    }
+                    break :blk match;
+                },
+                else => unreachable,
+            };
+        }
+        return @constCast(&[_]Token{ token });
+    }
+
     pub fn collect_args(self:*Block, start_pos:*usize, start_tok:Token) ![]Token {
         var mem:std.ArrayList(Token) = .empty;
         defer mem.deinit(self.alloc);
@@ -197,53 +242,18 @@ pub const Block = struct {
                     .@")" => depth -= 1,
                     else => return error.MissplacedSymbol,
                 }
-                if (depth == 0)
+                if (depth == 0) {
+                    for (mem.items) |token|
+                        std.debug.print("{any}\n", .{token});
                     return try mem.toOwnedSlice(self.alloc);
+                }
                 continue;
             }
             switch (tok.type) {
-                .variable => {
-                    while (tok.type == .variable) {
-                        const variable = tok.type.variable;
-                        tok = switch (variable) {
-                            .arg => |a| switch (a) {
-                                .plain => |n| self.args.?[n],
-                                .keyword => |key| switch (key) {
-                                    .@"count" => Token.mk_num(usize, self.args.?.len),
-                                    .@",,", .splat => @panic("TODO: splat args"),
-                                },
-                                else => unreachable,
-                            },
-                            .name => |name| blk: {
-                                var match = self.namespace.get(name.name) orelse {
-                                    std.debug.print("\n|{any}|\n", .{name});
-                                    return error.UnknownVariable;
-                                };
-                                if (name.flag) |flag| {
-                                    // TODO: stuff otherthan list indexing
-                                    if (match.type == .list) switch (flag.list) {
-                                        .idx => |idx| {
-                                            match = try match.type.list.get_token(idx);
-                                        },
-                                        .keyword => |keyword| switch (keyword) {
-                                            .count => match = Token.mk_num(
-                                                usize, match.type.list.count()
-                                            ),
-                                            .splat, .@",," => {
-                                                try mem.appendSlice(
-                                                    self.alloc,
-                                                    try match.type.list.splat(self.alloc)
-                                                );
-                                                continue :to_next;
-                                            },
-                                        }
-                                    };
-                                }
-                                break :blk match;
-                            },
-                            else => unreachable,
-                        };
-                    }
+                .variable => |variable| {
+                    const resolved = try self.resolve_var(variable);
+                    try mem.appendSlice(self.alloc, resolved);
+                    continue;
                 },
                 .ident => unreachable,
                 .block => @panic("TODO: nested function calls"),
