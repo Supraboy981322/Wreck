@@ -36,7 +36,7 @@ pub fn print(args:[]Token) !void {
                     else => unreachable,
                 };
             },
-            else => @panic(@tagName(a.type)),
+            else => std.debug.panic("{any}\n", .{a.type}),
         }
     }
 }
